@@ -132,7 +132,7 @@ public class CategoryAdapter extends RecyclerView.Adapter<CategoryAdapter.Catego
             UIUtils.animateFocus(v, hasFocus, 1.06f, 8f);
             int pos = holder.getAdapterPosition();
             if (pos != RecyclerView.NO_POSITION) {
-                if (hasFocus) {
+                if (hasFocus && !v.isInTouchMode()) {
                     if (focusListener != null) {
                         focusListener.onCategoryFocused(pos, v);
                     }
@@ -143,7 +143,8 @@ public class CategoryAdapter extends RecyclerView.Adapter<CategoryAdapter.Catego
                         }
                     }
                 }
-                v.setSelected(hasFocus || pos == selectedPosition);
+                boolean shouldShowSelection = (hasFocus && !v.isInTouchMode()) || pos == selectedPosition;
+                v.setSelected(shouldShowSelection);
             }
         });
 

@@ -55,6 +55,13 @@ public class UIUtils {
 
     public static void animateFocus(View v, boolean hasFocus, float scale, float elevationDp) {
         if (v == null) return;
+        if (v.isInTouchMode()) {
+            v.setScaleX(1.0f);
+            v.setScaleY(1.0f);
+            v.setTranslationZ(0f);
+            return;
+        }
+
         float targetScale = hasFocus ? scale : 1.0f;
         float targetElevation = hasFocus ? dpToPx(v.getContext(), (int) elevationDp) : 0f;
 
@@ -65,9 +72,5 @@ public class UIUtils {
                 .setDuration(150)
                 .setInterpolator(new android.view.animation.DecelerateInterpolator())
                 .start();
-
-        if (hasFocus) {
-            // translationZ handles elevation without mutating view hierarchy order
-        }
     }
 }

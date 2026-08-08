@@ -122,7 +122,7 @@ public class NavigationAdapter extends RecyclerView.Adapter<NavigationAdapter.Na
             UIUtils.animateFocus(v, hasFocus, 1.05f, 8f);
             int pos = holder.getAdapterPosition();
             if (pos != RecyclerView.NO_POSITION) {
-                if (hasFocus) {
+                if (hasFocus && !v.isInTouchMode()) {
                     if (pos != selectedPosition) {
                         selectedPosition = pos;
                         if (listener != null) {
@@ -130,7 +130,7 @@ public class NavigationAdapter extends RecyclerView.Adapter<NavigationAdapter.Na
                         }
                     }
                 }
-                boolean active = hasFocus || pos == selectedPosition;
+                boolean active = (hasFocus && !v.isInTouchMode()) || pos == selectedPosition;
                 v.setSelected(active);
                 holder.imgNavIcon.setSelected(active);
                 holder.txtNavTitle.setSelected(active);
