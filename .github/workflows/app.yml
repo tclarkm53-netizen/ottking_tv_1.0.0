@@ -30,6 +30,9 @@ jobs:
 
       - name: Prepare Build Environment
         run: |
+          # অ্যান্ড্রয়েড এসডিকে পাথ দিয়ে local.properties ফাইল তৈরি (বিল্ড ফেইলিওর রোধ করতে)
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+
           # গ্রেডল র‍্যাপার আপডেট করে 9.3.1 করা হলো
           gradle wrapper --gradle-version 9.3.1
           chmod +x gradlew
@@ -54,12 +57,12 @@ jobs:
             fi
             echo "✅ google-services.json successfully created in app/ directory."
             
-            # ফাইলের অস্তিত্ব ও কিছু অংশ প্রিন্ট করে নিশ্চিত হওয়ার জন্য (ডিবাগ সুবিধা)
+            # ফাইলের অস্তিত্ব ও কিছু অংশ প্রিন্ট করে নিশ্চিত হওয়ার জন্য (ডিবাগ সুবিধা)
             echo "--- Generated google-services.json preview ---"
             head -n 10 app/google-services.json
             echo "--------------------------------------------"
           else
-            echo "::error::GOOGLE_SERVICES_JSON secret repository secrets-এ পাওয়া যায়নি!"
+            echo "::error::GOOGLE_SERVICES_JSON secret repository secrets-এ পাওয়া যায়নি!"
             exit 1
           fi
 
@@ -99,7 +102,7 @@ jobs:
               echo "::error::keytool দিয়ে keystore/key ভেরিফাই করতে ব্যর্থ - STORE_PASSWORD, KEY_ALIAS বা KEY_PASSWORD ভুল হতে পারে।"
               exit 1
             fi
-            echo "✅ Keystore ও key password ভেরিফাই সফল।"
+            echo "✅ Keystore ও key password ভেরিفاই সফল।"
           else
             echo "::warning::RELEASE_KEYSTORE_BASE64 secret পাওয়া যায়নি - release/bundle বিল্ড ডিবাগ কি-স্টোর দিয়ে সাইন করা হচ্ছে।"
             {
