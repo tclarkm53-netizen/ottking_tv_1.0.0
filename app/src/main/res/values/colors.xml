@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg_dark">#0F0E13</color>
+    <color name="bg_dark_translucent">#D00F0E13</color>
+    <color name="bg_sidebar">#181622</color>
+    <color name="card_bg">#201C2B</color>
+    <color name="card_bg_stroke">#3A334B</color>
+    <color name="card_bg_focused">#2E273F</color>
+    <color name="gold_primary">#FFC107</color>
+    <color name="gold_secondary">#FFD54F</color>
+    <color name="gold_focus_border">#FFD700</color>
+    <color name="gold_active_bg">#3D3110</color>
+    <color name="text_on_primary">#000000</color>
+    <color name="text_primary">#FFFFFF</color>
+    <color name="text_secondary">#CCCCCC</color>
+    <color name="text_muted">#8A8399</color>
+    <color name="accent_red">#FF5252</color>
+    <color name="accent_green">#00E676</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+</resources>
