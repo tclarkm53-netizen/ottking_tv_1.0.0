@@ -557,7 +557,7 @@ public class SettingsActivity extends AppCompatActivity {
             if (focusable != null) {
                 focusable.setFocusable(true);
                 focusable.setFocusableInTouchMode(true);
-                focusable.requestFocus();
+                focusable.post(() -> focusable.requestFocus());
             }
         });
     }
@@ -566,14 +566,17 @@ public class SettingsActivity extends AppCompatActivity {
         if (view == null || view.getVisibility() != View.VISIBLE || !view.isEnabled()) {
             return null;
         }
-        if (view.isFocusable()
-                && !(view instanceof RecyclerView)
-                && !(view instanceof android.widget.ScrollView)
-                && !(view instanceof LinearLayout)
-                && !(view instanceof FrameLayout)
-                && !(view instanceof android.widget.RelativeLayout)) {
+
+        if (view instanceof EditText
+                || view instanceof Button
+                || view instanceof SwitchCompat
+                || view instanceof RadioButton
+                || view instanceof Spinner
+                || view instanceof RadioGroup
+                || view instanceof android.widget.SeekBar) {
             return view;
         }
+
         if (view instanceof ViewGroup) {
             ViewGroup group = (ViewGroup) view;
             for (int i = 0; i < group.getChildCount(); i++) {

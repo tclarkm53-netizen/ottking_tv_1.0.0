@@ -571,6 +571,20 @@ public class MainActivity extends AppCompatActivity {
         } else {
             txtChannelCount.setText(filteredChannels.size() + " Channels");
         }
+
+        recyclerChannels.post(() -> {
+            View focusedView = getCurrentFocus();
+            boolean shouldRestoreCategoryFocus = focusedView == null
+                    || focusedView == edtSearch
+                    || focusedView.getId() == R.id.btnVoiceSearch
+                    || focusedView.getId() == R.id.btnNotification
+                    || focusedView.getId() == R.id.btnSettings
+                    || (recyclerCategories != null && recyclerCategories.findContainingItemView(focusedView) != null);
+
+            if (shouldRestoreCategoryFocus) {
+                focusSelectedCategory();
+            }
+        });
     }
 
     @Override
