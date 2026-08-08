@@ -38,6 +38,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import com.ottking.devcode.utils.FocusManager;
+import com.ottking.devcode.utils.InputFocusHelper;
 import com.ottking.devcode.utils.UIUtils;
 import com.ottking.devcode.viewmodel.FocusViewModel;
 
@@ -167,64 +168,14 @@ public class SettingsActivity extends AppCompatActivity {
         };
 
         if (edtUsername != null) {
-            edtUsername.setFocusable(true);
-            edtUsername.setFocusableInTouchMode(true);
-            edtUsername.setCursorVisible(false);
-
-            edtUsername.setOnFocusChangeListener((v, hasFocus) -> {
-                InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-                if (!hasFocus) {
-                    edtUsername.setCursorVisible(false);
-                    if (imm != null) {
-                        imm.hideSoftInputFromWindow(edtUsername.getWindowToken(), 0);
-                    }
-                } else {
-                    if (imm != null) {
-                        imm.hideSoftInputFromWindow(edtUsername.getWindowToken(), 0);
-                    }
-                }
-            });
-
+            InputFocusHelper.bind(edtUsername, this, null, null);
             edtUsername.setOnKeyListener(openKeyboardKeyListener);
-            edtUsername.setOnClickListener(v -> {
-                edtUsername.setFocusableInTouchMode(true);
-                edtUsername.setCursorVisible(true);
-                edtUsername.requestFocus();
-                InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-                if (imm != null) {
-                    imm.showSoftInput(edtUsername, InputMethodManager.SHOW_IMPLICIT);
-                }
-            });
+            edtUsername.setOnClickListener(v -> InputFocusHelper.activate(this, edtUsername, null));
         }
         if (edtPassword != null) {
-            edtPassword.setFocusable(true);
-            edtPassword.setFocusableInTouchMode(true);
-            edtPassword.setCursorVisible(false);
-
-            edtPassword.setOnFocusChangeListener((v, hasFocus) -> {
-                InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-                if (!hasFocus) {
-                    edtPassword.setCursorVisible(false);
-                    if (imm != null) {
-                        imm.hideSoftInputFromWindow(edtPassword.getWindowToken(), 0);
-                    }
-                } else {
-                    if (imm != null) {
-                        imm.hideSoftInputFromWindow(edtPassword.getWindowToken(), 0);
-                    }
-                }
-            });
-
+            InputFocusHelper.bind(edtPassword, this, null, null);
             edtPassword.setOnKeyListener(openKeyboardKeyListener);
-            edtPassword.setOnClickListener(v -> {
-                edtPassword.setFocusableInTouchMode(true);
-                edtPassword.setCursorVisible(true);
-                edtPassword.requestFocus();
-                InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-                if (imm != null) {
-                    imm.showSoftInput(edtPassword, InputMethodManager.SHOW_IMPLICIT);
-                }
-            });
+            edtPassword.setOnClickListener(v -> InputFocusHelper.activate(this, edtPassword, null));
         }
 
         String session = prefs.getSessionToken();

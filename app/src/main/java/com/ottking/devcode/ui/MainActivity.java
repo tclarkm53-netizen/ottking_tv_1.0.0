@@ -48,6 +48,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.ottking.devcode.utils.FocusManager;
+import com.ottking.devcode.utils.InputFocusHelper;
 import com.ottking.devcode.utils.UIUtils;
 import com.ottking.devcode.viewmodel.FocusViewModel;
 
@@ -233,6 +234,8 @@ public class MainActivity extends AppCompatActivity {
             FocusManager.getInstance().savePosition(this, SCREEN_KEY, GROUP_CATEGORIES, pos);
             FocusManager.getInstance().saveFocus(this, SCREEN_KEY, view);
         });
+        recyclerCategories.setHasFixedSize(true);
+        recyclerCategories.setItemAnimator(null);
         recyclerCategories.setAdapter(categoryAdapter);
 
         // Channels Grid Layout (exactly 5 columns)
@@ -286,6 +289,8 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
+        recyclerChannels.setHasFixedSize(true);
+        recyclerChannels.setItemAnimator(null);
         recyclerChannels.setAdapter(channelAdapter);
     }
 
@@ -458,32 +463,18 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void setupSearch() {
-        edtSearch.setFocusable(true);
-        edtSearch.setFocusableInTouchMode(true);
-        edtSearch.setCursorVisible(false);
-
-        edtSearch.setOnFocusChangeListener((v, hasFocus) -> {
-            InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-            if (!hasFocus) {
-                edtSearch.setCursorVisible(false);
-                if (imm != null) {
-                    imm.hideSoftInputFromWindow(edtSearch.getWindowToken(), 0);
-                }
-            } else {
-                edtSearch.setCursorVisible(true);
-                setCategoryPanelExpanded(true);
-                FocusManager.getInstance().saveFocus(this, SCREEN_KEY, v);
-            }
+        InputFocusHelper.bind(edtSearch, this, () -> {
+            setCategoryPanelExpanded(true);
+            FocusManager.getInstance().saveFocus(this, SCREEN_KEY, edtSearch);
+        }, () -> {
+            setCategoryPanelExpanded(true);
+            FocusManager.getInstance().saveFocus(this, SCREEN_KEY, edtSearch);
         });
 
-        Runnable activateSearchInput = () -> {
-            edtSearch.setCursorVisible(true);
-            edtSearch.requestFocus();
-            InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-            if (imm != null) {
-                imm.showSoftInput(edtSearch, InputMethodManager.SHOW_IMPLICIT);
-            }
-        };
+        Runnable activateSearchInput = () -> InputFocusHelper.activate(this, edtSearch, () -> {
+            setCategoryPanelExpanded(true);
+            FocusManager.getInstance().saveFocus(this, SCREEN_KEY, edtSearch);
+        });
 
         edtSearch.setOnClickListener(v -> activateSearchInput.run());
 

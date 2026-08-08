@@ -59,7 +59,7 @@ public class SplashActivity extends AppCompatActivity {
         ApiClient.getInstance(this).syncCategoriesAndChannels(new ApiClient.ApiCallback<Boolean>() {
             @Override
             public void onSuccess(Boolean result) {
-                new Handler(Looper.getMainLooper()).postDelayed(() -> navigateNextScreen(), 600);
+                new Handler(Looper.getMainLooper()).post(() -> navigateNextScreen());
             }
 
             @Override

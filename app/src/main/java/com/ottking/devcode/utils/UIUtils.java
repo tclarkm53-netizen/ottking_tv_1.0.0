@@ -69,7 +69,7 @@ public class UIUtils {
                 .scaleX(targetScale)
                 .scaleY(targetScale)
                 .translationZ(targetElevation)
-                .setDuration(150)
+                .setDuration(90)
                 .setInterpolator(new android.view.animation.DecelerateInterpolator())
                 .start();
     }

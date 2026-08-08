@@ -752,34 +752,9 @@ public class PlayerActivity extends AppCompatActivity {
         }
 
         if (edtPlayerSearch != null) {
-            edtPlayerSearch.setFocusable(true);
-            edtPlayerSearch.setFocusableInTouchMode(false);
-            edtPlayerSearch.setCursorVisible(false);
+            InputFocusHelper.bind(edtPlayerSearch, this, null, null);
 
-            edtPlayerSearch.setOnFocusChangeListener((v, hasFocus) -> {
-                InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-                if (!hasFocus) {
-                    edtPlayerSearch.setCursorVisible(false);
-                    edtPlayerSearch.setFocusableInTouchMode(false);
-                    if (imm != null) {
-                        imm.hideSoftInputFromWindow(edtPlayerSearch.getWindowToken(), 0);
-                    }
-                } else {
-                    if (imm != null) {
-                        imm.hideSoftInputFromWindow(edtPlayerSearch.getWindowToken(), 0);
-                    }
-                }
-            });
-
-            Runnable activatePlayerSearch = () -> {
-                edtPlayerSearch.setFocusableInTouchMode(true);
-                edtPlayerSearch.setCursorVisible(true);
-                edtPlayerSearch.requestFocus();
-                InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-                if (imm != null) {
-                    imm.showSoftInput(edtPlayerSearch, InputMethodManager.SHOW_IMPLICIT);
-                }
-            };
+            Runnable activatePlayerSearch = () -> InputFocusHelper.activate(this, edtPlayerSearch, null);
 
             edtPlayerSearch.setOnClickListener(v -> activatePlayerSearch.run());
 
