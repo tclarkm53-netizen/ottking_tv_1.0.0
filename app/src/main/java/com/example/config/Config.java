@@ -7,8 +7,8 @@ package com.example.config;
 public class Config {
 
     // Primary API URL & Base Endpoint
-    public static final String BASE_URL = "https://verify-app.alwaysdata.net/new/mobile/v1";
-    public static final String API_URL = "https://verify-app.alwaysdata.net/new/mobile/v1";
+    public static final String BASE_URL = "https://verify-app.alwaysdata.net/new/mobile/v1/";
+    public static final String API_URL = "https://verify-app.alwaysdata.net/new/mobile/v1/";
 
     // Security & Authentication Credentials
     public static final String API_KEY = "iptv_sec_api_key_2026";
