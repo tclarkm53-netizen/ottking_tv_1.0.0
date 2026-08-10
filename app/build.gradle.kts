@@ -10,11 +10,11 @@ plugins {
 }
 
 android {
-  namespace = "com.example"
+  namespace = "com.ottking.mobile.devcode"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 
   defaultConfig {
-    applicationId = "com.ottking.devcode.app"
+    applicationId = "com.ottking.mobile.devcode"
     minSdk = 24
     targetSdk = 36
     versionCode = 1
@@ -48,6 +48,33 @@ android {
     }
     debug { signingConfig = signingConfigs.getByName("debugConfig") }
   }
+  
+  splits {
+    abi {
+      isEnable = true
+      reset()
+      include("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+      isUniversalApk = true
+    }
+  }
+
+  packaging {
+    resources {
+      excludes += setOf(
+        "META-INF/DEPENDENCIES",
+        "META-INF/LICENSE",
+        "META-INF/LICENSE.txt",
+        "META-INF/NOTICE",
+        "META-INF/NOTICE.txt",
+        "META-INF/*.kotlin_module"
+      )
+    }
+  }
+
+  
+  
+  
+  
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_11
     targetCompatibility = JavaVersion.VERSION_11

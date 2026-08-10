@@ -164,7 +164,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Q: How do I add my custom M3U playlist?\nA: Open Navigation Drawer -> Click 'Network Streams' -> Enter your M3U playlist URL.\n\nQ: Does ExoPlayer support HLS and MPEG-TS?\nA: Yes! Native ExoPlayer engine handles HLS (.m3u8), DASH (.mpd), and MPEG-TS (.ts) streams with hardware decoding.\n\nQ: How to enable Picture-in-Picture (PiP)?\nA: Tap the PiP icon inside the custom player controls while watching any channel."
+                android:text="Q: How does real-time streaming work?\nA: All channels and cinema streams are synced live from the secure streaming server automatically.\n\nQ: Does ExoPlayer support HLS and MPEG-TS?\nA: Yes! Native ExoPlayer engine handles HLS (.m3u8), DASH (.mpd), and MPEG-TS (.ts) streams with hardware decoding.\n\nQ: How to enable Picture-in-Picture (PiP)?\nA: Tap the PiP icon inside the custom player controls while watching any channel."
                 android:textColor="@color/text_secondary"
                 android:textSize="13sp" />
         </LinearLayout>
