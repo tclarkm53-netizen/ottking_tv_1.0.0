@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <group android:checkableBehavior="single">
+        <item
+            android:id="@+id/nav_streams"
+            android:icon="@drawable/ic_stream"
+            android:title="Network Streams" />
+        <item
+            android:id="@+id/nav_playlists"
+            android:icon="@drawable/ic_playlist"
+            android:title="Playlists" />
+        <item
+            android:id="@+id/nav_floating_player"
+            android:icon="@drawable/ic_pip"
+            android:title="Floating Player (PiP)" />
+        <item
+            android:id="@+id/nav_low_quality"
+            android:icon="@drawable/ic_quality"
+            android:title="Enable Low Quality" />
+        <item
+            android:id="@+id/nav_copyright"
+            android:icon="@drawable/ic_copyright"
+            android:title="Copyright Info" />
+        <item
+            android:id="@+id/nav_dev"
+            android:icon="@drawable/ic_dev"
+            android:title="Developer Info" />
+        <item
+            android:id="@+id/nav_telegram"
+            android:icon="@drawable/ic_telegram"
+            android:title="Telegram Group" />
+        <item
+            android:id="@+id/nav_whatsapp"
+            android:icon="@drawable/ic_whatsapp"
+            android:title="WhatsApp Support" />
+    </group>
+    <item android:title="Account &amp; System">
+        <menu>
+            <item
+                android:id="@+id/nav_login"
+                android:icon="@drawable/ic_user"
+                android:title="User Login / Account" />
+            <item
+                android:id="@+id/nav_exit"
+                android:icon="@drawable/ic_exit"
+                android:title="Exit Application" />
+        </menu>
+    </item>
+</menu>

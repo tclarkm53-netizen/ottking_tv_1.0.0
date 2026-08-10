@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@color/bg_surface"
+    android:orientation="vertical"
+    android:padding="20dp">
+
+    <TextView
+        android:id="@+id/txtDialogTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Add Network Stream / M3U"
+        android:textColor="@color/text_primary"
+        android:textSize="18sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="Supports HTTP, HLS (.m3u8), DASH (.mpd), or MPEG-TS (.ts)"
+        android:textColor="@color/text_secondary"
+        android:textSize="12sp" />
+
+    <EditText
+        android:id="@+id/etStreamName"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_marginTop="16dp"
+        android:background="@drawable/bg_chip_unselected"
+        android:hint="Stream Title (e.g. My Live TV)"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:textColor="@color/text_primary"
+        android:textColorHint="@color/text_secondary"
+        android:textSize="14sp" />
+
+    <EditText
+        android:id="@+id/etStreamUrl"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_marginTop="12dp"
+        android:background="@drawable/bg_chip_unselected"
+        android:hint="Stream URL (http://...m3u8 or .mpd)"
+        android:inputType="textUri"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:textColor="@color/text_primary"
+        android:textColorHint="@color/text_secondary"
+        android:textSize="14sp" />
+
+</LinearLayout>

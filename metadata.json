@@ -1,0 +1,6 @@
+{
+  "name": "Live TV Player",
+  "description": "High-performance live TV and IPTV streaming player with Media3 ExoPlayer, HLS/DASH/TS support, playlist management, and custom floating PIP window.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

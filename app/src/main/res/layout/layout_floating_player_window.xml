@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/floatingRoot"
+    android:layout_width="280dp"
+    android:layout_height="170dp"
+    app:cardCornerRadius="14dp"
+    app:cardElevation="12dp"
+    app:cardBackgroundColor="#000000">
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <!-- ExoPlayer View with texture_view surface for floating WindowManager overlays -->
+        <androidx.media3.ui.PlayerView
+            android:id="@+id/floatingPlayerView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            app:surface_type="texture_view"
+            app:use_controller="false"
+            app:resize_mode="fit"
+            android:background="#000000" />
+
+        <ProgressBar
+            android:id="@+id/floatingProgress"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_centerInParent="true"
+            android:indeterminateTint="@color/primary"
+            android:visibility="visible" />
+
+        <!-- Top Drag & Control Bar -->
+        <RelativeLayout
+            android:id="@+id/floatingHeader"
+            android:layout_width="match_parent"
+            android:layout_height="36dp"
+            android:background="#CC000000"
+            android:paddingHorizontal="8dp">
+
+            <TextView
+                android:id="@+id/txtFloatingTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_centerVertical="true"
+                android:layout_toStartOf="@+id/btnFloatingExpand"
+                android:layout_alignParentStart="true"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="Floating Stream"
+                android:textColor="#FFFFFF"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <ImageView
+                android:id="@+id/btnFloatingExpand"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:layout_centerVertical="true"
+                android:layout_toStartOf="@+id/btnFloatingClose"
+                android:layout_marginEnd="6dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Expand to Fullscreen"
+                android:padding="3dp"
+                android:src="@drawable/ic_fullscreen"
+                app:tint="#FFFFFF" />
+
+            <ImageView
+                android:id="@+id/btnFloatingClose"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:layout_alignParentEnd="true"
+                android:layout_centerVertical="true"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Close Floating Player"
+                android:padding="3dp"
+                android:src="@drawable/ic_exit"
+                app:tint="#FF5252" />
+        </RelativeLayout>
+
+        <!-- Bottom Action Overlay (Play/Pause) -->
+        <LinearLayout
+            android:id="@+id/floatingControls"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_alignParentBottom="true"
+            android:background="#99000000"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:paddingVertical="3dp">
+
+            <ImageView
+                android:id="@+id/btnFloatingPlayPause"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Play or Pause"
+                android:padding="4dp"
+                android:src="@drawable/ic_pause"
+                app:tint="#FFFFFF" />
+        </LinearLayout>
+
+    </RelativeLayout>
+</androidx.cardview.widget.CardView>

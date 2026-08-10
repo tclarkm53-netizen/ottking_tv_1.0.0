@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="4dp"
+    android:clickable="true"
+    android:focusable="true"
+    android:foreground="?attr/selectableItemBackground"
+    app:cardBackgroundColor="@color/bg_surface"
+    app:cardCornerRadius="16dp"
+    app:cardElevation="3dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_horizontal"
+        android:orientation="vertical"
+        android:padding="8dp">
+
+        <!-- Top Header Overlay for Favorite and Stream Badge -->
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="24dp">
+
+            <!-- Favorite Heart Icon -->
+            <ImageView
+                android:id="@+id/imgFavIcon"
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:layout_alignParentStart="true"
+                android:layout_centerVertical="true"
+                android:contentDescription="Favorite Status"
+                android:src="@drawable/ic_favorite_border"
+                app:tint="@color/accent_red" />
+
+            <!-- Live / Type Badge -->
+            <TextView
+                android:id="@+id/txtStreamBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentEnd="true"
+                android:layout_centerVertical="true"
+                android:background="@drawable/bg_chip_selected"
+                android:paddingStart="5dp"
+                android:paddingTop="1dp"
+                android:paddingEnd="5dp"
+                android:paddingBottom="1dp"
+                android:text="LIVE"
+                android:textColor="@color/white"
+                android:textSize="9sp"
+                android:textStyle="bold" />
+        </RelativeLayout>
+
+        <!-- Channel Logo Frame -->
+        <androidx.cardview.widget.CardView
+            android:id="@+id/cardLogoFrame"
+            android:layout_width="66dp"
+            android:layout_height="66dp"
+            android:layout_marginTop="2dp"
+            android:layout_marginBottom="6dp"
+            app:cardBackgroundColor="#1A202C"
+            app:cardCornerRadius="33dp"
+            app:cardElevation="2dp">
+
+            <ImageView
+                android:id="@+id/imgChannelLogo"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:contentDescription="Channel Image"
+                android:scaleType="centerCrop"
+                android:src="@drawable/img_hero_banner" />
+        </androidx.cardview.widget.CardView>
+
+        <!-- Channel Title and Details -->
+        <TextView
+            android:id="@+id/txtChannelTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:gravity="center"
+            android:maxLines="1"
+            android:text="Channel Name"
+            android:textColor="@color/text_primary"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/txtCategory"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:ellipsize="end"
+            android:gravity="center"
+            android:maxLines="1"
+            android:text="Category • Quality"
+            android:textColor="@color/text_secondary"
+            android:textSize="10sp" />
+
+    </LinearLayout>
+
+</androidx.cardview.widget.CardView>

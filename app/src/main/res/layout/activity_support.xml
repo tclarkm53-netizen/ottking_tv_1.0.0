@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg_dark"
+    android:orientation="vertical">
+
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/toolbarSupport"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="@color/bg_surface"
+        app:navigationIcon="@drawable/ic_arrow_back"
+        app:title="Developer Info &amp; Support"
+        app:titleTextColor="@color/text_primary" />
+
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <!-- Banner Header -->
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                app:cardBackgroundColor="@color/bg_surface"
+                app:cardCornerRadius="12dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="20dp">
+
+                    <ImageView
+                        android:layout_width="64dp"
+                        android:layout_height="64dp"
+                        android:src="@drawable/ic_support"
+                        app:tint="@color/primary" />
+
+                    <TextView
+                        android:id="@+id/txtDevInfoTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:text="24/7 Live Support &amp; Developer Info"
+                        android:textColor="@color/text_primary"
+                        android:textSize="18sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/txtDevInfoContent"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:gravity="center"
+                        android:text="Loading developer info from server..."
+                        android:textColor="@color/text_secondary"
+                        android:textSize="13sp" />
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- Telegram Button -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnSupportTelegram"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:layout_marginBottom="12dp"
+                android:backgroundTint="#229ED9"
+                android:text="Join Telegram Community"
+                android:textColor="@color/white"
+                app:icon="@drawable/ic_telegram"
+                app:iconTint="@color/white" />
+
+            <!-- WhatsApp Button -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnSupportWhatsapp"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:layout_marginBottom="16dp"
+                android:backgroundTint="#25D366"
+                android:text="Chat on WhatsApp Support"
+                android:textColor="@color/white"
+                app:icon="@drawable/ic_whatsapp"
+                app:iconTint="@color/white" />
+
+            <!-- Report Broken Link Form Card -->
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                app:cardBackgroundColor="@color/bg_surface"
+                app:cardCornerRadius="12dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Report a Broken Stream"
+                        android:textColor="@color/text_primary"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <EditText
+                        android:id="@+id/etBrokenChannelName"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:layout_marginTop="8dp"
+                        android:background="@drawable/bg_chip_unselected"
+                        android:hint="Channel or Stream Name"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:textColor="@color/text_primary"
+                        android:textColorHint="@color/text_secondary"
+                        android:textSize="14sp" />
+
+                    <EditText
+                        android:id="@+id/etBrokenDescription"
+                        android:layout_width="match_parent"
+                        android:layout_height="80dp"
+                        android:layout_marginTop="8dp"
+                        android:background="@drawable/bg_chip_unselected"
+                        android:gravity="top|start"
+                        android:hint="Describe problem (e.g. no audio, black screen, frozen)"
+                        android:padding="12dp"
+                        android:textColor="@color/text_primary"
+                        android:textColorHint="@color/text_secondary"
+                        android:textSize="14sp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnSubmitReport"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:layout_marginTop="12dp"
+                        android:backgroundTint="@color/accent_red"
+                        android:text="Submit Report"
+                        android:textColor="@color/white" />
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- FAQ Info -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:text="Frequently Asked Questions"
+                android:textColor="@color/text_primary"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Q: How do I add my custom M3U playlist?\nA: Open Navigation Drawer -> Click 'Network Streams' -> Enter your M3U playlist URL.\n\nQ: Does ExoPlayer support HLS and MPEG-TS?\nA: Yes! Native ExoPlayer engine handles HLS (.m3u8), DASH (.mpd), and MPEG-TS (.ts) streams with hardware decoding.\n\nQ: How to enable Picture-in-Picture (PiP)?\nA: Tap the PiP icon inside the custom player controls while watching any channel."
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp" />
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+</LinearLayout>

@@ -1,0 +1,280 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/playerControlRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_player_overlay">
+
+    <!-- Top Bar Controls -->
+    <LinearLayout
+        android:id="@+id/playerTopBar"
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:layout_alignParentTop="true"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp">
+
+        <ImageView
+            android:id="@+id/btnPlayerBack"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Back"
+            android:padding="6dp"
+            android:src="@drawable/ic_arrow_back"
+            app:tint="@color/white" />
+
+        <TextView
+            android:id="@+id/txtPlayerChannelTitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="Channel Stream"
+            android:textColor="@color/white"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <!-- Real-Time Network Speed Badge -->
+        <TextView
+            android:id="@+id/txtNetworkSpeed"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:background="@drawable/bg_chip_unselected"
+            android:paddingStart="6dp"
+            android:paddingTop="2dp"
+            android:paddingEnd="6dp"
+            android:paddingBottom="2dp"
+            android:text="0.0 KB/s"
+            android:textColor="@color/accent_green"
+            android:textSize="10sp"
+            android:textStyle="bold" />
+
+        <!-- Quality Tag -->
+        <TextView
+            android:id="@+id/txtQualityBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="6dp"
+            android:background="@drawable/bg_chip_selected"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="?attr/selectableItemBackground"
+            android:paddingStart="6dp"
+            android:paddingTop="2dp"
+            android:paddingEnd="6dp"
+            android:paddingBottom="2dp"
+            android:text="AUTO"
+            android:textColor="@color/white"
+            android:textSize="10sp"
+            android:textStyle="bold" />
+
+        <!-- Quality Selector Icon Button -->
+        <ImageView
+            android:id="@+id/btnQuality"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Quality Settings"
+            android:padding="6dp"
+            android:src="@drawable/ic_quality"
+            app:tint="@color/white" />
+    </LinearLayout>
+
+    <!-- Center Playback Controls -->
+    <LinearLayout
+        android:id="@+id/centerControlsLayout"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerInParent="true"
+        android:gravity="center"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:id="@+id/btnRewind"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginEnd="24dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Rewind 10s"
+            android:padding="8dp"
+            android:src="@drawable/ic_rewind"
+            app:tint="@color/white" />
+
+        <RelativeLayout
+            android:layout_width="64dp"
+            android:layout_height="64dp">
+
+            <ImageView
+                android:id="@+id/btnPlayPause"
+                android:layout_width="64dp"
+                android:layout_height="64dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Play/Pause"
+                android:padding="8dp"
+                android:src="@drawable/ic_pause"
+                app:tint="@color/primary" />
+
+            <ProgressBar
+                android:id="@+id/progressBarBuffer"
+                android:layout_width="54dp"
+                android:layout_height="54dp"
+                android:layout_centerInParent="true"
+                android:indeterminateTint="@color/primary"
+                android:visibility="gone" />
+        </RelativeLayout>
+
+        <ImageView
+            android:id="@+id/btnForward"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="24dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Forward 10s"
+            android:padding="8dp"
+            android:src="@drawable/ic_forward"
+            app:tint="@color/white" />
+    </LinearLayout>
+
+    <!-- Gesture Volume / Brightness Indicator Card Overlay -->
+    <androidx.cardview.widget.CardView
+        android:id="@+id/cardGestureOverlay"
+        android:layout_width="140dp"
+        android:layout_height="100dp"
+        android:layout_centerInParent="true"
+        android:visibility="gone"
+        app:cardBackgroundColor="#E6111827"
+        app:cardCornerRadius="16dp"
+        app:cardElevation="8dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:padding="12dp">
+
+            <ImageView
+                android:id="@+id/imgGestureIcon"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:contentDescription="Gesture Indicator"
+                android:src="@drawable/ic_volume"
+                app:tint="@color/primary" />
+
+            <TextView
+                android:id="@+id/txtGestureTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Volume: 80%"
+                android:textColor="@color/white"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <ProgressBar
+                android:id="@+id/progressGesture"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="100dp"
+                android:layout_height="6dp"
+                android:layout_marginTop="6dp"
+                android:max="100"
+                android:progress="80"
+                android:progressTint="@color/primary"
+                android:progressBackgroundTint="@color/text_secondary" />
+        </LinearLayout>
+    </androidx.cardview.widget.CardView>
+
+    <!-- Bottom Bar Controls (Seekbar, Times, Scaling, PiP, Fullscreen) -->
+    <LinearLayout
+        android:id="@+id/playerBottomBar"
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:layout_alignParentBottom="true"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp">
+
+        <TextView
+            android:id="@+id/txtLiveIndicator"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center_vertical"
+            android:text="🔴 LIVE STREAM"
+            android:textColor="@color/accent_red"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/txtPosition"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="00:00"
+            android:textColor="@color/white"
+            android:textSize="12sp" />
+
+        <SeekBar
+            android:id="@+id/seekBarPlayer"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:progressBackgroundTint="@color/text_secondary"
+            android:progressTint="@color/primary"
+            android:thumbTint="@color/primary" />
+
+        <TextView
+            android:id="@+id/txtDuration"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="LIVE"
+            android:textColor="@color/accent_red"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <!-- Aspect Ratio / Scaling Toggle -->
+        <ImageView
+            android:id="@+id/btnAspectRatio"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginStart="6dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Aspect Ratio / Scale"
+            android:padding="6dp"
+            android:src="@drawable/ic_aspect_ratio"
+            app:tint="@color/white" />
+
+        <!-- Floating Player (PiP Mode) -->
+        <ImageView
+            android:id="@+id/btnPiP"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginStart="2dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Picture-in-Picture Mode"
+            android:padding="6dp"
+            android:src="@drawable/ic_pip"
+            app:tint="@color/white" />
+
+        <!-- Fullscreen Toggle -->
+        <ImageView
+            android:id="@+id/btnFullscreen"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginStart="2dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Fullscreen Toggle"
+            android:padding="6dp"
+            android:src="@drawable/ic_fullscreen"
+            app:tint="@color/white" />
+    </LinearLayout>
+
+</RelativeLayout>

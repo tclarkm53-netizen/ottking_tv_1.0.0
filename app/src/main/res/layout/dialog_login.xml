@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@color/bg_surface"
+    android:orientation="vertical"
+    android:padding="20dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:contentDescription="User Account"
+            android:src="@drawable/ic_user"
+            app:tint="@color/primary" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:text="Account / Xtream Login"
+            android:textColor="@color/text_primary"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:layout_marginBottom="16dp"
+        android:text="Sign in with your IPTV account, Xtream API, or Email to access premium channels."
+        android:textColor="@color/text_secondary"
+        android:textSize="13sp" />
+
+    <EditText
+        android:id="@+id/etLoginUsername"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_marginBottom="10dp"
+        android:background="@drawable/bg_chip_unselected"
+        android:hint="Username or Email"
+        android:inputType="text"
+        android:paddingHorizontal="14dp"
+        android:textColor="@color/text_primary"
+        android:textColorHint="@color/text_secondary"
+        android:textSize="14sp" />
+
+    <EditText
+        android:id="@+id/etLoginPassword"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_marginBottom="16dp"
+        android:background="@drawable/bg_chip_unselected"
+        android:hint="Password"
+        android:inputType="textPassword"
+        android:paddingHorizontal="14dp"
+        android:textColor="@color/text_primary"
+        android:textColorHint="@color/text_secondary"
+        android:textSize="14sp" />
+
+</LinearLayout>

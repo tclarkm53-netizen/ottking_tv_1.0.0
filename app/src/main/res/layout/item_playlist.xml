@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/cardPlaylist"
+    android:layout_width="match_parent"
+    android:layout_height="56dp"
+    android:layout_margin="5dp"
+    android:foreground="?attr/selectableItemBackground"
+    app:cardBackgroundColor="@android:color/transparent"
+    app:cardCornerRadius="14dp"
+    app:cardElevation="2dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/bg_playlist_card"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="10dp"
+        android:paddingTop="6dp"
+        android:paddingEnd="10dp"
+        android:paddingBottom="6dp">
+
+        <RelativeLayout
+            android:layout_width="36dp"
+            android:layout_height="36dp">
+
+            <ImageView
+                android:id="@+id/imgPlaylistCover"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/bg_chip_selected"
+                android:contentDescription="Playlist Cover"
+                android:padding="6dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_playlist"
+                app:tint="@color/white" />
+        </RelativeLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/txtPlaylistTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="Playlist Title"
+                android:textColor="@color/white"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/txtPlaylistDesc"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="1dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="0 Channels"
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp" />
+        </LinearLayout>
+    </LinearLayout>
+</androidx.cardview.widget.CardView>

@@ -1,0 +1,23 @@
+[
+  {
+    "id": "notif_server_001",
+    "title": "🎉 Welcome to Premium VIP IPTV!",
+    "message": "Access all 4K Live Sports channels, blockbuster Movies, and complete Series with your active subscription.",
+    "timestamp": "Today",
+    "icon": "bell"
+  },
+  {
+    "id": "notif_server_002",
+    "title": "🎬 New 4K VIP Blockbuster Movies Added!",
+    "message": "Inception 4K, Interstellar IMAX, Oppenheimer, and Game of Thrones are now available in your playlist.",
+    "timestamp": "Today",
+    "icon": "movie"
+  },
+  {
+    "id": "notif_server_003",
+    "title": "⚽ Live Football & Sports Streams",
+    "message": "Watch live sports in Full HD with ultra-low buffer and fast server switching.",
+    "timestamp": "Yesterday",
+    "icon": "sports"
+  }
+]

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Outer subtle shadow layer -->
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="30dp" />
+            <solid android:color="#2010B981" />
+        </shape>
+    </item>
+    <!-- Main 3D container layer -->
+    <item android:top="2dp" android:bottom="2dp" android:left="2dp" android:right="2dp">
+        <shape android:shape="rectangle">
+            <gradient
+                android:startColor="#222C3D"
+                android:endColor="#141C28"
+                android:angle="270" />
+            <corners android:radius="28dp" />
+            <stroke
+                android:width="2dp"
+                android:color="@color/accent_green" />
+        </shape>
+    </item>
+</layer-list>

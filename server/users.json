@@ -1,0 +1,56 @@
+{
+  "vip_user": {
+    "username": "VIP Master User",
+    "email": "vip_user@iptvstream.com",
+    "password": "pass123",
+    "plan": "VIP 4K Ultra Premium",
+    "subscription_status": "ACTIVE",
+    "expiry_date": "2028-12-31 23:59:59",
+    "expiry_timestamp": 1861919999000
+  },
+  "admin": {
+    "username": "Server Administrator",
+    "email": "admin@iptvstream.com",
+    "password": "admin123",
+    "plan": "Administrator VIP Unlimited",
+    "subscription_status": "ACTIVE",
+    "expiry_date": "2030-12-31 23:59:59",
+    "expiry_timestamp": 1924991999000
+  },
+  "admin@iptvstream.com": {
+    "username": "Server Administrator",
+    "email": "admin@iptvstream.com",
+    "password": "admin123",
+    "plan": "Administrator VIP Unlimited",
+    "subscription_status": "ACTIVE",
+    "expiry_date": "2030-12-31 23:59:59",
+    "expiry_timestamp": 1924991999000
+  },
+  "ottkingbd@gmail.com": {
+    "username": "OTT King BD",
+    "email": "ottkingbd@gmail.com",
+    "password": "pass123",
+    "plan": "VIP 4K Ultra Lifetime",
+    "subscription_status": "ACTIVE",
+    "expiry_date": "2030-12-31 23:59:59",
+    "expiry_timestamp": 1924991999000
+  },
+  "user1": {
+    "username": "Premium Subscriber 1",
+    "email": "user1@iptvstream.com",
+    "password": "123456",
+    "plan": "VIP Gold 1080p",
+    "subscription_status": "ACTIVE",
+    "expiry_date": "2028-06-30 23:59:59",
+    "expiry_timestamp": 1845945599000
+  },
+  "expired_user": {
+    "username": "Expired Account User",
+    "email": "expired_user@iptvstream.com",
+    "password": "123456",
+    "plan": "VIP Premium (Expired)",
+    "subscription_status": "EXPIRED",
+    "expiry_date": "2024-01-01 00:00:00",
+    "expiry_timestamp": 1704067200000
+  }
+}

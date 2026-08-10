@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "OTT KING"
+rootProject.name = "Live TV Player"
 
 include(":app")

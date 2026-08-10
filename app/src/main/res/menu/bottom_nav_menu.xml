@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/nav_live_tv"
+        android:icon="@drawable/ic_tv"
+        android:title="Live TV" />
+    <item
+        android:id="@+id/nav_category"
+        android:icon="@drawable/ic_playlist"
+        android:title="Category" />
+    <item
+        android:id="@+id/nav_movies"
+        android:icon="@drawable/ic_movie"
+        android:title="Movies" />
+</menu>
+

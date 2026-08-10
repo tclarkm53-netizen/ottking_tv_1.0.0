@@ -1,36 +1,3 @@
 <resources>
-    <string name="app_name">OTT KING</string>
-    <string name="exit_app_title">Exit OTT KING?</string>
-    <string name="exit_app_message">Are you sure you want to close OTT KING?</string>
-    <string name="exit_player_title">Stop Playback &amp; Exit?</string>
-    <string name="exit_player_message">Are you sure you want to stop playback and exit OTT KING?</string>
-    <string name="btn_exit_app">Exit App</string>
-    <string name="btn_stay_app">Stay in App</string>
-    <string name="btn_stop_exit">Stop &amp; Exit</string>
-    <string name="btn_keep_watching">Keep Watching</string>
-    <string name="btn_ok">OK</string>
-    <string name="btn_cancel">Cancel</string>
-    <string name="btn_close">Close</string>
-    <string name="btn_retry">Retry</string>
-    <string name="btn_update_now">Update Now</string>
-    <string name="btn_later">Later</string>
-    <string name="btn_sign_in">Sign In</string>
-    <string name="btn_sign_out">Sign Out</string>
-    <string name="btn_submit_report">Submit Report</string>
-    <string name="title_up_to_date">Up To Date</string>
-    <string name="msg_up_to_date">You are already using the latest version of OTT KING.</string>
-    <string name="title_new_update">New Update Available</string>
-    <string name="title_login_failed">Login Failed</string>
-    <string name="title_login_error">Login Error</string>
-    <string name="title_app_info">App Information</string>
-    <string name="title_dev_info">Developer Information</string>
-    <string name="title_report_problem">Report a Problem</string>
-    <string name="title_server_connection_failed">Server Connection Failed</string>
-    <string name="msg_server_connection_failed">Unable to sync with live TV server. Please verify server status or network connection and retry.</string>
-    <string name="title_app_permanently_down">App Permanently Down</string>
-    <string name="msg_app_permanently_down">The OTT KING server endpoint is currently offline or undergoing maintenance. Please check back later.</string>
-    <string name="title_player_settings">PLAYER &amp; SYSTEM SETTINGS</string>
-    <string name="now_playing_live_stream">Now Playing • Live Stream</string>
-    <string name="live_channel">Live Channel</string>
-    <string name="copyright_text">Copyright © 2026 OTT KING. All Rights Reserved.</string>
+    <string name="app_name">Live TV Player</string>
 </resources>

@@ -1,89 +1,84 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="10dp"
-    android:background="@drawable/selector_card_focus"
-    android:clickable="true"
-    android:focusable="true"
-    android:orientation="vertical"
-    android:padding="12dp">
+    android:layout_marginStart="4dp"
+    android:layout_marginTop="6dp"
+    android:layout_marginEnd="4dp"
+    android:layout_marginBottom="6dp"
+    android:foreground="?attr/selectableItemBackground"
+    app:cardBackgroundColor="@color/bg_surface"
+    app:cardCornerRadius="14dp"
+    app:cardElevation="3dp">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:background="@drawable/bg_playlist_card"
         android:gravity="center_vertical"
-        android:orientation="horizontal">
+        android:orientation="horizontal"
+        android:padding="12dp">
 
-        <ImageView
-            android:id="@+id/imgNotifIcon"
-            android:layout_width="28dp"
-            android:layout_height="28dp"
-            android:layout_marginEnd="10dp"
-            android:contentDescription="Notification Icon"
-            android:src="@drawable/ic_notifications" />
+        <RelativeLayout
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/bg_chip_selected"
+            android:padding="8dp">
 
-        <TextView
-            android:id="@+id/txtNotifTitle"
+            <ImageView
+                android:id="@+id/imgNotificationIcon"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:contentDescription="Notification Icon"
+                android:src="@drawable/ic_notification"
+                app:tint="@color/white" />
+        </RelativeLayout>
+
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
             android:layout_weight="1"
-            android:text="Notification Title"
-            android:textColor="@color/white"
-            android:textSize="13sp"
-            android:textStyle="bold" />
+            android:orientation="vertical">
 
-        <View
-            android:id="@+id/unreadDot"
-            android:layout_width="8dp"
-            android:layout_height="8dp"
-            android:layout_marginStart="6dp"
-            android:background="@drawable/bg_notification_badge"
-            android:visibility="visible" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
 
+                <TextView
+                    android:id="@+id/txtNotificationTitle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:text="System Notification"
+                    android:textColor="@color/white"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/txtNotificationTime"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Just now"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="11sp" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/txtNotificationMessage"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:ellipsize="end"
+                android:maxLines="3"
+                android:text="ExoPlayer HLS &amp; DASH Live Engine loaded with low-latency streaming support."
+                android:textColor="@color/text_primary"
+                android:textSize="12sp" />
+        </LinearLayout>
     </LinearLayout>
-
-    <TextView
-        android:id="@+id/txtNotifMessage"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
-        android:lineSpacingExtra="2dp"
-        android:text="Notification details and description content text."
-        android:textColor="@color/text_secondary"
-        android:textSize="11sp" />
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
-
-        <TextView
-            android:id="@+id/txtNotifTime"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Just Now"
-            android:textColor="@color/text_muted"
-            android:textSize="10sp" />
-
-        <Button
-            android:id="@+id/btnNotifAction"
-            android:layout_width="wrap_content"
-            android:layout_height="32dp"
-            android:backgroundTint="@color/gold_primary"
-            android:clickable="true"
-            android:focusable="true"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            android:text="Update Now"
-            android:textColor="@color/black"
-            android:textSize="10sp"
-            android:textStyle="bold"
-            android:visibility="gone" />
-
-    </LinearLayout>
-
-</LinearLayout>
+</androidx.cardview.widget.CardView>

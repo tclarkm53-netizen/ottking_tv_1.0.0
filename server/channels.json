@@ -1,0 +1,211 @@
+[
+  {
+    "title": "T Sports Live HD",
+    "streamUrl": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+    "logoUrl": "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=400",
+    "category": "tv",
+    "subCategory": "Sports",
+    "isFavorite": true,
+    "streamType": "hls",
+    "quality": "1080p Full HD",
+    "is_premium": false
+  },
+  {
+    "title": "Sky Sports Premier Live",
+    "streamUrl": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+    "logoUrl": "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=400",
+    "category": "tv",
+    "subCategory": "Sports",
+    "isFavorite": false,
+    "streamType": "hls",
+    "quality": "1080p Full HD",
+    "is_premium": false
+  },
+  {
+    "title": "Star Sports 1 HD [VIP]",
+    "streamUrl": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+    "logoUrl": "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=400",
+    "category": "tv",
+    "subCategory": "Sports VIP",
+    "isFavorite": true,
+    "streamType": "hls",
+    "quality": "4K Ultra HD",
+    "is_premium": true
+  },
+  {
+    "title": "Sony Ten 1 HD [VIP]",
+    "streamUrl": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+    "logoUrl": "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=400",
+    "category": "tv",
+    "subCategory": "Sports VIP",
+    "isFavorite": true,
+    "streamType": "hls",
+    "quality": "1080p 60FPS",
+    "is_premium": true
+  },
+  {
+    "title": "BeIN Sports 4K UHD [VIP]",
+    "streamUrl": "https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8",
+    "logoUrl": "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=400",
+    "category": "tv",
+    "subCategory": "Sports VIP",
+    "isFavorite": false,
+    "streamType": "hls",
+    "quality": "4K Ultra HD",
+    "is_premium": true
+  },
+  {
+    "title": "Gazi TV Live",
+    "streamUrl": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+    "logoUrl": "https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=400",
+    "category": "tv",
+    "subCategory": "News",
+    "isFavorite": false,
+    "streamType": "hls",
+    "quality": "1080p Full HD",
+    "is_premium": false
+  },
+  {
+    "title": "BBC World News Live",
+    "streamUrl": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+    "logoUrl": "https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=400",
+    "category": "tv",
+    "subCategory": "News",
+    "isFavorite": true,
+    "streamType": "hls",
+    "quality": "1080p HD",
+    "is_premium": false
+  },
+  {
+    "title": "Somoy TV Live 24/7",
+    "streamUrl": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+    "logoUrl": "https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=400",
+    "category": "tv",
+    "subCategory": "News",
+    "isFavorite": false,
+    "streamType": "hls",
+    "quality": "720p HD",
+    "is_premium": false
+  },
+  {
+    "title": "HBO HD Cinema Live [VIP]",
+    "streamUrl": "https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8",
+    "logoUrl": "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=400",
+    "category": "tv",
+    "subCategory": "Entertainment VIP",
+    "isFavorite": true,
+    "streamType": "hls",
+    "quality": "1080p 4K",
+    "is_premium": true
+  },
+  {
+    "title": "Discovery Channel HD",
+    "streamUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4",
+    "logoUrl": "https://images.unsplash.com/photo-1534447677768-be436bb09401?w=400",
+    "category": "tv",
+    "subCategory": "Entertainment",
+    "isFavorite": false,
+    "streamType": "hls",
+    "quality": "1080p",
+    "is_premium": false
+  },
+  {
+    "title": "MPEG-TS Live Raw Channel",
+    "streamUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+    "logoUrl": "https://images.unsplash.com/photo-1594909122845-11baa439b7bf?w=400",
+    "category": "tv",
+    "subCategory": "MPEG-TS",
+    "isFavorite": false,
+    "streamType": "ts",
+    "quality": "1080p TS",
+    "is_premium": false
+  },
+  {
+    "title": "Big Buck Bunny HD (Free)",
+    "streamUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+    "logoUrl": "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=400",
+    "category": "movie",
+    "subCategory": "Animation",
+    "isFavorite": false,
+    "streamType": "mp4",
+    "quality": "1080p HD",
+    "is_premium": false
+  },
+  {
+    "title": "Tears of Steel (Free)",
+    "streamUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4",
+    "logoUrl": "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=400",
+    "category": "movie",
+    "subCategory": "Sci-Fi",
+    "isFavorite": false,
+    "streamType": "mp4",
+    "quality": "1080p HD",
+    "is_premium": false
+  },
+  {
+    "title": "Inception 4K UHD [VIP]",
+    "streamUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
+    "logoUrl": "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=400",
+    "category": "movie",
+    "subCategory": "Action VIP",
+    "isFavorite": true,
+    "streamType": "mp4",
+    "quality": "4K Ultra HD",
+    "is_premium": true
+  },
+  {
+    "title": "The Dark Knight IMAX [VIP]",
+    "streamUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+    "logoUrl": "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=400",
+    "category": "movie",
+    "subCategory": "Action VIP",
+    "isFavorite": true,
+    "streamType": "mp4",
+    "quality": "4K Ultra HD",
+    "is_premium": true
+  },
+  {
+    "title": "Interstellar 4K HDR [VIP]",
+    "streamUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
+    "logoUrl": "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=400",
+    "category": "movie",
+    "subCategory": "Sci-Fi VIP",
+    "isFavorite": true,
+    "streamType": "mp4",
+    "quality": "4K Ultra HD",
+    "is_premium": true
+  },
+  {
+    "title": "Oppenheimer 4K [VIP]",
+    "streamUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+    "logoUrl": "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=400",
+    "category": "movie",
+    "subCategory": "Drama VIP",
+    "isFavorite": true,
+    "streamType": "mp4",
+    "quality": "4K Ultra HD",
+    "is_premium": true
+  },
+  {
+    "title": "Game of Thrones (Season 1-8) [VIP]",
+    "streamUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4",
+    "logoUrl": "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=400",
+    "category": "series",
+    "subCategory": "Drama VIP",
+    "isFavorite": true,
+    "streamType": "mp4",
+    "quality": "1080p Full HD",
+    "is_premium": true
+  },
+  {
+    "title": "Breaking Bad Complete Series [VIP]",
+    "streamUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
+    "logoUrl": "https://images.unsplash.com/photo-1522869635100-9f4c5e86aa37?w=400",
+    "category": "series",
+    "subCategory": "Crime VIP",
+    "isFavorite": true,
+    "streamType": "mp4",
+    "quality": "1080p HD",
+    "is_premium": true
+  }
+]

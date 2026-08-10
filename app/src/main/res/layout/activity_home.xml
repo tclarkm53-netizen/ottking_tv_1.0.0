@@ -1,0 +1,715 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.drawerlayout.widget.DrawerLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/drawerLayout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fitsSystemWindows="true"
+    tools:openDrawer="start">
+
+    <!-- Main Content Layout -->
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/bg_dark">
+
+        <!-- Custom Toolbar -->
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/toolbarHome"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            android:background="@color/bg_surface"
+            android:elevation="4dp"
+            app:titleTextColor="@color/text_primary">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingEnd="8dp">
+
+                <ImageView
+                    android:id="@+id/btnNavDrawer"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="Nav Drawer"
+                    android:padding="8dp"
+                    android:src="@drawable/ic_menu"
+                    app:tint="@color/text_primary" />
+
+                <TextView
+                    android:id="@+id/txtAppName"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:text="Live TV Player"
+                    android:textColor="@color/text_primary"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+
+                <!-- Toolbar Actions: Search, Reload, Favorite, Notification -->
+                <ImageView
+                    android:id="@+id/btnSearch"
+                    android:layout_width="38dp"
+                    android:layout_height="38dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="Search"
+                    android:padding="8dp"
+                    android:src="@drawable/ic_search"
+                    app:tint="@color/text_primary" />
+
+                <ImageView
+                    android:id="@+id/btnReload"
+                    android:layout_width="38dp"
+                    android:layout_height="38dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="Reload"
+                    android:padding="8dp"
+                    android:src="@drawable/ic_reload"
+                    app:tint="@color/text_primary" />
+
+                <ImageView
+                    android:id="@+id/btnFavorites"
+                    android:layout_width="38dp"
+                    android:layout_height="38dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="Favorites"
+                    android:padding="8dp"
+                    android:src="@drawable/ic_favorite"
+                    app:tint="@color/accent_gold" />
+
+                <ImageView
+                    android:id="@+id/btnNotification"
+                    android:layout_width="38dp"
+                    android:layout_height="38dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="Notifications"
+                    android:padding="8dp"
+                    android:src="@drawable/ic_notification"
+                    app:tint="@color/text_primary" />
+            </LinearLayout>
+        </com.google.android.material.appbar.MaterialToolbar>
+
+        <!-- Search Bar (Collapsible/Toggleable) -->
+        <LinearLayout
+            android:id="@+id/layoutSearchInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/toolbarHome"
+            android:background="@color/bg_surface"
+            android:padding="8dp"
+            android:visibility="gone">
+
+            <EditText
+                android:id="@+id/etSearchQuery"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:background="@drawable/bg_chip_unselected"
+                android:hint="Search channels, movies, sports..."
+                android:imeOptions="actionSearch"
+                android:inputType="text"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:textColor="@color/text_primary"
+                android:textColorHint="@color/text_secondary"
+                android:textSize="14sp" />
+        </LinearLayout>
+
+        <!-- Main Body Scroll Content -->
+        <androidx.core.widget.NestedScrollView
+            android:id="@+id/nestedScrollView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_above="@id/bottomNavigation"
+            android:layout_below="@id/layoutSearchInput">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="12dp">
+
+                <!-- Featured Hero Banner Card (Hidden as requested: no hero design on home screen) -->
+                <androidx.cardview.widget.CardView
+                    android:id="@+id/cardFeatured"
+                    android:layout_width="match_parent"
+                    android:layout_height="180dp"
+                    android:visibility="gone"
+                    app:cardBackgroundColor="@color/bg_surface"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="4dp">
+
+                    <RelativeLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent">
+
+                        <ImageView
+                            android:id="@+id/imgBanner"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:contentDescription="Hero Banner"
+                            android:scaleType="centerCrop"
+                            android:src="@drawable/img_hero_banner" />
+
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="@drawable/bg_player_overlay" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_alignParentBottom="true"
+                            android:orientation="vertical"
+                            android:padding="16dp">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:background="@color/accent_red"
+                                android:paddingStart="8dp"
+                                android:paddingTop="2dp"
+                                android:paddingEnd="8dp"
+                                android:paddingBottom="2dp"
+                                android:text="LIVE STREAMING"
+                                android:textColor="@color/white"
+                                android:textSize="10sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/txtFeaturedTitle"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:text="Click Any Stream to Watch Live"
+                                android:textColor="@color/white"
+                                android:textSize="18sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="HLS • DASH • MPEG-TS Engine"
+                                android:textColor="@color/primary"
+                                android:textSize="12sp" />
+                        </LinearLayout>
+                    </RelativeLayout>
+                </androidx.cardview.widget.CardView>
+
+                <!-- Active Playlist Detail Header Bar (Shown when inside a specific Playlist) -->
+                <LinearLayout
+                    android:id="@+id/layoutPlaylistHeader"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginBottom="8dp"
+                    android:background="@drawable/bg_chip_selected"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:padding="10dp"
+                    android:visibility="gone">
+
+                    <ImageView
+                        android:id="@+id/btnBackToPlaylists"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="Back to Playlists"
+                        android:padding="4dp"
+                        android:src="@drawable/ic_arrow_back"
+                        app:tint="@color/white" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:id="@+id/txtPlaylistHeaderTitle"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:ellipsize="end"
+                            android:maxLines="1"
+                            android:text="Sports HD Playlist"
+                            android:textColor="@color/white"
+                            android:textSize="15sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/txtPlaylistHeaderCount"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="5 Channels • Tap channel to play"
+                            android:textColor="@color/bg_card"
+                            android:textSize="11sp" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- Category Filters Horizontal Chips -->
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/rvCategories"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginBottom="12dp"
+                    android:orientation="horizontal"
+                    app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
+
+                <!-- Section Title -->
+                <TextView
+                    android:id="@+id/txtSectionTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="8dp"
+                    android:text="Available Channels"
+                    android:textColor="@color/text_primary"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <!-- Playlists Grid RecyclerView -->
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/rvPlaylists"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:nestedScrollingEnabled="false"
+                    android:visibility="gone" />
+
+                <!-- Notifications RecyclerView -->
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/rvNotifications"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:nestedScrollingEnabled="false"
+                    android:visibility="gone" />
+
+                <!-- Channels Grid RecyclerView -->
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/rvChannels"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:nestedScrollingEnabled="false" />
+
+                <!-- Data Spinner Lazy Loading Container -->
+                <LinearLayout
+                    android:id="@+id/layoutLoadingSpinner"
+                    android:layout_width="match_parent"
+                    android:layout_height="220dp"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                    <ProgressBar
+                        android:id="@+id/progressBarLoading"
+                        android:layout_width="44dp"
+                        android:layout_height="44dp"
+                        android:indeterminateTint="@color/accent_green" />
+
+                    <TextView
+                        android:id="@+id/txtLoadingText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:text="Loading data..."
+                        android:textColor="@color/text_secondary"
+                        android:textSize="13sp" />
+                </LinearLayout>
+
+                <!-- Empty State Container -->
+                <LinearLayout
+                    android:id="@+id/layoutEmptyState"
+                    android:layout_width="match_parent"
+                    android:layout_height="240dp"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="20dp"
+                    android:visibility="gone">
+
+                    <ImageView
+                        android:id="@+id/imgEmptyState"
+                        android:layout_width="56dp"
+                        android:layout_height="56dp"
+                        android:contentDescription="Empty state"
+                        android:src="@drawable/ic_favorite_border"
+                        app:tint="@color/text_secondary" />
+
+                    <TextView
+                        android:id="@+id/txtEmptyTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:text="No Items Found"
+                        android:textColor="@color/white"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/txtEmptySubtitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:gravity="center"
+                        android:text="There are no items available right now."
+                        android:textColor="@color/text_secondary"
+                        android:textSize="13sp" />
+
+                    <TextView
+                        android:id="@+id/btnEmptyAction"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="14dp"
+                        android:background="@drawable/bg_chip_selected"
+                        android:paddingStart="18dp"
+                        android:paddingTop="8dp"
+                        android:paddingEnd="18dp"
+                        android:paddingBottom="8dp"
+                        android:text="Explore Live TV"
+                        android:textColor="@color/white"
+                        android:textSize="13sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+            </LinearLayout>
+        </androidx.core.widget.NestedScrollView>
+
+        <!-- Footer Bottom Navigation View -->
+        <com.google.android.material.bottomnavigation.BottomNavigationView
+            android:id="@+id/bottomNavigation"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_alignParentBottom="true"
+            android:layout_marginStart="24dp"
+            android:layout_marginEnd="24dp"
+            android:layout_marginBottom="16dp"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:paddingTop="2dp"
+            android:paddingBottom="2dp"
+            android:background="@drawable/bg_bottom_nav"
+            app:elevation="10dp"
+            app:itemIconSize="20dp"
+            app:itemPaddingTop="2dp"
+            app:itemPaddingBottom="2dp"
+            app:itemBackground="@drawable/bg_bottom_nav_item"
+            app:itemIconTint="@color/bottom_nav_icon_color"
+            app:itemRippleColor="#3310B981"
+            app:itemTextColor="@color/bottom_nav_text_color"
+            app:itemHorizontalTranslationEnabled="false"
+            app:labelVisibilityMode="selected"
+            app:menu="@menu/bottom_nav_menu" />
+
+        <!-- Full Screen Custom Maintenance / Error Overlay View -->
+        <LinearLayout
+            android:id="@+id/layoutFullscreenStatus"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#0F172A"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:padding="24dp"
+            android:visibility="gone"
+            android:elevation="30dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_card_rounded"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:padding="28dp">
+
+                <!-- Header / Warning Icon -->
+                <ImageView
+                    android:id="@+id/imgStatusIcon"
+                    android:layout_width="72dp"
+                    android:layout_height="72dp"
+                    android:contentDescription="Status Icon"
+                    android:src="@drawable/ic_maintenance"
+                    app:tint="#F59E0B" />
+
+                <!-- Badge Tag -->
+                <TextView
+                    android:id="@+id/txtStatusBadge"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:background="@drawable/bg_chip_selected"
+                    android:paddingStart="12dp"
+                    android:paddingTop="4dp"
+                    android:paddingEnd="12dp"
+                    android:paddingBottom="4dp"
+                    android:text="MAINTENANCE MODE"
+                    android:textColor="@color/white"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+
+                <!-- Main Status Title -->
+                <TextView
+                    android:id="@+id/txtStatusTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:gravity="center"
+                    android:text="App Under Maintenance"
+                    android:textColor="@color/white"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+
+                <!-- Status Subtitle / Detailed Message -->
+                <TextView
+                    android:id="@+id/txtStatusMessage"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:gravity="center"
+                    android:lineSpacingExtra="3dp"
+                    android:text="Server is currently under maintenance. No data can be loaded from the server right now."
+                    android:textColor="#94A3B8"
+                    android:textSize="14sp" />
+
+                <!-- Notice Banner -->
+                <TextView
+                    android:id="@+id/txtStatusNotice"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:background="#1A334155"
+                    android:gravity="center"
+                    android:padding="10dp"
+                    android:text="⚠️ Data loading disabled until server connection is restored."
+                    android:textColor="#FBBF24"
+                    android:textSize="12sp" />
+
+                <!-- Action Buttons: Retry & Exit -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="24dp"
+                    android:gravity="center"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/btnStatusRetry"
+                        android:layout_width="0dp"
+                        android:layout_height="48dp"
+                        android:layout_marginEnd="8dp"
+                        android:layout_weight="1"
+                        android:background="@drawable/bg_chip_selected"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:gravity="center"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:text="🔄 Retry Sync"
+                        android:textColor="@color/white"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/btnStatusExit"
+                        android:layout_width="0dp"
+                        android:layout_height="48dp"
+                        android:layout_marginStart="8dp"
+                        android:layout_weight="1"
+                        android:background="@drawable/bg_chip_unselected"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:gravity="center"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:text="❌ Exit App"
+                        android:textColor="#EF4444"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <!-- Full Screen Custom App Update Dialog / Overlay View -->
+        <LinearLayout
+            android:id="@+id/layoutAppUpdate"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#DD0F172A"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:padding="20dp"
+            android:visibility="gone"
+            android:elevation="35dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_card_rounded"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:padding="24dp">
+
+                <!-- Update Header Icon -->
+                <ImageView
+                    android:id="@+id/imgUpdateIcon"
+                    android:layout_width="64dp"
+                    android:layout_height="64dp"
+                    android:contentDescription="Update Icon"
+                    android:src="@drawable/ic_reload"
+                    app:tint="#3B82F6" />
+
+                <!-- Update Version Badge -->
+                <TextView
+                    android:id="@+id/txtUpdateBadge"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:background="@drawable/bg_chip_selected"
+                    android:paddingStart="14dp"
+                    android:paddingTop="5dp"
+                    android:paddingEnd="14dp"
+                    android:paddingBottom="5dp"
+                    android:text="VERSION 2.0.0 AVAILABLE"
+                    android:textColor="@color/white"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+
+                <!-- Update Main Title -->
+                <TextView
+                    android:id="@+id/txtUpdateTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:gravity="center"
+                    android:text="🚀 New App Update Available!"
+                    android:textColor="@color/white"
+                    android:textSize="19sp"
+                    android:textStyle="bold" />
+
+                <!-- Update Message -->
+                <TextView
+                    android:id="@+id/txtUpdateMessage"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:gravity="center"
+                    android:lineSpacingExtra="2dp"
+                    android:text="A new update is ready to download with video playback fixes, performance upgrades, and new stream features."
+                    android:textColor="#94A3B8"
+                    android:textSize="13sp" />
+
+                <!-- Release Notes Container -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:background="#1E293B"
+                    android:orientation="vertical"
+                    android:padding="12dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="What's New:"
+                        android:textColor="#38BDF8"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/txtUpdateReleaseNotes"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:lineSpacingExtra="3dp"
+                        android:text="• Faster HD stream loading\n• Enhanced video player controls\n• Category auto-filter fixes\n• General stability improvements"
+                        android:textColor="#E2E8F0"
+                        android:textSize="12sp" />
+                </LinearLayout>
+
+                <!-- Mandatory Update Notice (if force_update == true) -->
+                <TextView
+                    android:id="@+id/txtUpdateForceNotice"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:background="#2E1065"
+                    android:gravity="center"
+                    android:padding="8dp"
+                    android:text="⚠️ Mandatory Update Required to continue using the app."
+                    android:textColor="#A78BFA"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:visibility="gone" />
+
+                <!-- Action Buttons: Update Now & Remind Me Later -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:gravity="center"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/btnUpdateNow"
+                        android:layout_width="0dp"
+                        android:layout_height="48dp"
+                        android:layout_marginEnd="6dp"
+                        android:layout_weight="1"
+                        android:background="@drawable/bg_chip_selected"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:gravity="center"
+                        android:paddingStart="10dp"
+                        android:paddingEnd="10dp"
+                        android:text="📥 Update Now"
+                        android:textColor="@color/white"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/btnUpdateLater"
+                        android:layout_width="0dp"
+                        android:layout_height="48dp"
+                        android:layout_marginStart="6dp"
+                        android:layout_weight="1"
+                        android:background="@drawable/bg_chip_unselected"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:gravity="center"
+                        android:paddingStart="10dp"
+                        android:paddingEnd="10dp"
+                        android:text="⏰ Later"
+                        android:textColor="#94A3B8"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+    </RelativeLayout>
+
+    <!-- Navigation Drawer View -->
+    <com.google.android.material.navigation.NavigationView
+        android:id="@+id/navigationView"
+        android:layout_width="280dp"
+        android:layout_height="match_parent"
+        android:layout_gravity="start"
+        android:layout_marginTop="15dp"
+        android:fitsSystemWindows="true"
+        android:background="@color/bg_surface"
+        app:headerLayout="@layout/nav_header"
+        app:itemIconTint="@color/primary"
+        app:itemTextColor="@color/text_primary"
+        app:menu="@menu/drawer_menu" />
+
+</androidx.drawerlayout.widget.DrawerLayout>
