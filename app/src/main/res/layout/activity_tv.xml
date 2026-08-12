@@ -17,7 +17,7 @@
         <ImageView
             android:layout_width="48dp"
             android:layout_height="48dp"
-            android:src="@drawable/img_app_logo" />
+            android:src="@drawable/logo" />
 
         <TextView
             android:layout_width="0dp"
