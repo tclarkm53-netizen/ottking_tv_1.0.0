@@ -25,7 +25,7 @@
             android:layout_height="48dp"
             android:contentDescription="Channel Logo"
             android:scaleType="centerCrop"
-            android:src="@drawable/img_app_logo" />
+            android:src="@drawable/logo" />
 
         <LinearLayout
             android:layout_width="0dp"
