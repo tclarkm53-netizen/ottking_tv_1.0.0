@@ -1,5 +1,7 @@
 package com.ottking.mobile.devcode;
 
+import java.util.Locale;
+
 import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -41,6 +43,7 @@ import androidx.transition.Fade;
 import androidx.transition.TransitionManager;
 
 import com.bumptech.glide.Glide;
+import com.facebook.shimmer.ShimmerFrameLayout;
 import androidx.transition.TransitionSet;
 
 import android.graphics.Color;
@@ -81,6 +84,8 @@ public class HomeActivity extends AppCompatActivity implements NavigationView.On
     private NestedScrollView nestedScrollView;
     private RecyclerView rvCategories, rvChannels, rvPlaylists, rvNotifications;
     private LinearLayout layoutSearchInput, layoutPlaylistHeader, layoutLoadingSpinner, layoutEmptyState, layoutFullscreenStatus, layoutAppUpdate;
+    private View layoutShimmer;
+    private ShimmerFrameLayout shimmerFrameLayout;
     private EditText etSearchQuery;
     private TextView txtAppName, txtSectionTitle, txtFeaturedTitle, txtPlaylistHeaderTitle, txtPlaylistHeaderCount, txtLoadingText, txtEmptyTitle, txtEmptySubtitle, btnEmptyAction;
     private TextView txtStatusBadge, txtStatusTitle, txtStatusMessage, txtStatusNotice, btnStatusRetry, btnStatusExit;
@@ -163,6 +168,8 @@ public class HomeActivity extends AppCompatActivity implements NavigationView.On
         layoutSearchInput = findViewById(R.id.layoutSearchInput);
         layoutPlaylistHeader = findViewById(R.id.layoutPlaylistHeader);
         layoutLoadingSpinner = findViewById(R.id.layoutLoadingSpinner);
+        layoutShimmer = findViewById(R.id.layoutShimmer);
+        shimmerFrameLayout = findViewById(R.id.shimmerFrameLayout);
         layoutEmptyState = findViewById(R.id.layoutEmptyState);
         progressBarLoading = findViewById(R.id.progressBarLoading);
         txtLoadingText = findViewById(R.id.txtLoadingText);
@@ -279,6 +286,25 @@ public class HomeActivity extends AppCompatActivity implements NavigationView.On
         cardFeatured.setOnClickListener(v -> {
             if (!currentChannels.isEmpty()) {
                 ChannelEntity channel = currentChannels.get(0);
+                if (FloatingPlayerService.isRunning()) {
+                    Intent serviceIntent = new Intent(HomeActivity.this, FloatingPlayerService.class);
+                    serviceIntent.setAction(FloatingPlayerService.ACTION_START_FLOATING);
+                    serviceIntent.putExtra(FloatingPlayerService.EXTRA_CHANNEL_ID, String.valueOf(channel.getId()));
+                    serviceIntent.putExtra(FloatingPlayerService.EXTRA_STREAM_URL, channel.getStreamUrl());
+                    serviceIntent.putExtra(FloatingPlayerService.EXTRA_STREAM_TITLE, channel.getTitle());
+                    serviceIntent.putExtra(FloatingPlayerService.EXTRA_STREAM_CATEGORY, channel.getCategory());
+                    serviceIntent.putExtra(FloatingPlayerService.EXTRA_STREAM_TYPE, channel.getStreamType());
+                    serviceIntent.putExtra(FloatingPlayerService.EXTRA_LOGO_URL, channel.getLogoUrl());
+                    serviceIntent.putExtra(FloatingPlayerService.EXTRA_SEEK_POSITION, 0L);
+
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        startForegroundService(serviceIntent);
+                    } else {
+                        startService(serviceIntent);
+                    }
+                    Toast.makeText(HomeActivity.this, "Playing on Floating Player: " + channel.getTitle(), Toast.LENGTH_SHORT).show();
+                    return;
+                }
                 boolean isMovie = "movie".equalsIgnoreCase(currentMainTab) || isMovieChannel(channel);
                 Intent intent;
                 if (isMovie) {
@@ -392,7 +418,7 @@ public class HomeActivity extends AppCompatActivity implements NavigationView.On
         List<String> dynamicCategories = new ArrayList<>();
         dynamicCategories.add("All");
         dynamicCategories.addAll(categoriesSet);
-        if (rvCategories != null) rvCategories.setVisibility(View.VISIBLE);
+        if (rvCategories != null) rvCategories.setVisibility(View.GONE);
         if (categoryAdapter != null) {
             categoryAdapter.updateCategories(dynamicCategories);
         }
@@ -441,16 +467,25 @@ public class HomeActivity extends AppCompatActivity implements NavigationView.On
     }
 
     private void showLoadingSpinner(String message) {
-        if (layoutLoadingSpinner == null) return;
-        txtLoadingText.setText(message != null ? message : "Loading data...");
-        layoutLoadingSpinner.setVisibility(View.VISIBLE);
+        if (layoutShimmer != null && shimmerFrameLayout != null) {
+            layoutShimmer.setVisibility(View.VISIBLE);
+            shimmerFrameLayout.startShimmer();
+        } else if (layoutLoadingSpinner != null) {
+            if (txtLoadingText != null) txtLoadingText.setText(message != null ? message : "Loading data...");
+            layoutLoadingSpinner.setVisibility(View.VISIBLE);
+        }
         if (layoutEmptyState != null) layoutEmptyState.setVisibility(View.GONE);
+        if (rvCategories != null) rvCategories.setVisibility(View.GONE);
         if (rvChannels != null) rvChannels.setVisibility(View.GONE);
         if (rvPlaylists != null) rvPlaylists.setVisibility(View.GONE);
         if (rvNotifications != null) rvNotifications.setVisibility(View.GONE);
     }
 
     private void hideLoadingSpinner() {
+        if (layoutShimmer != null && shimmerFrameLayout != null) {
+            shimmerFrameLayout.stopShimmer();
+            layoutShimmer.setVisibility(View.GONE);
+        }
         if (layoutLoadingSpinner != null) {
             layoutLoadingSpinner.setVisibility(View.GONE);
         }
@@ -622,22 +657,26 @@ public class HomeActivity extends AppCompatActivity implements NavigationView.On
             }
         }
 
-        String[] defaultImages = {
-            "https://images.unsplash.com/photo-1522869635100-9f4c5e86aa37?w=400",
-            "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=400",
-            "https://images.unsplash.com/photo-1594909122845-11baa439b7bf?w=400",
-            "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=400",
-            "https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=400"
-        };
-        int imgIndex = 0;
-
         for (Map.Entry<String, Integer> entry : serverCategories.entrySet()) {
             String catName = entry.getKey();
             int count = entry.getValue();
             if (count > 0) {
-                String img = defaultImages[imgIndex % defaultImages.length];
-                imgIndex++;
-                list.add(new PlaylistModel("p_cat_" + catName, catName, count + " Live TV Channels", catName, img, count));
+                String img = PreferenceUtils.getCategoryIconUrl(this, catName);
+                if (img == null || img.trim().isEmpty()) {
+                    for (ChannelEntity c : all) {
+                        if (c != null) {
+                            String sub = c.getSubCategory() != null ? c.getSubCategory().trim() : "";
+                            String cat = c.getCategory() != null ? c.getCategory().trim() : "";
+                            if (catName.equalsIgnoreCase(sub) || catName.equalsIgnoreCase(cat)) {
+                                if (c.getLogoUrl() != null && !c.getLogoUrl().trim().isEmpty()) {
+                                    img = c.getLogoUrl().trim();
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                list.add(new PlaylistModel("p_cat_" + catName, catName, count + " Live TV Channels", catName, img != null ? img.trim() : "", count));
             }
         }
 
@@ -721,7 +760,7 @@ public class HomeActivity extends AppCompatActivity implements NavigationView.On
         rvPlaylists.setVisibility(View.GONE);
         rvNotifications.setVisibility(View.GONE);
         layoutPlaylistHeader.setVisibility(View.GONE);
-        rvCategories.setVisibility(View.VISIBLE);
+        rvCategories.setVisibility(View.GONE);
         cardFeatured.setVisibility(View.GONE);
         txtSectionTitle.setVisibility(View.VISIBLE);
         txtSectionTitle.setText("Live TV Channels");
@@ -796,7 +835,7 @@ public class HomeActivity extends AppCompatActivity implements NavigationView.On
             dynamicCats.addAll(subCats);
 
             if (dynamicCats.size() > 1) {
-                rvCategories.setVisibility(View.VISIBLE);
+                rvCategories.setVisibility(View.GONE);
                 if (categoryAdapter != null) {
                     categoryAdapter.updateCategories(dynamicCats);
                 }
@@ -829,7 +868,7 @@ public class HomeActivity extends AppCompatActivity implements NavigationView.On
         layoutPlaylistHeader.setVisibility(View.GONE);
         rvPlaylists.setVisibility(View.GONE);
         rvNotifications.setVisibility(View.GONE);
-        rvCategories.setVisibility(View.VISIBLE);
+        rvCategories.setVisibility(View.GONE);
         cardFeatured.setVisibility(View.GONE);
         txtSectionTitle.setVisibility(View.VISIBLE);
         txtSectionTitle.setText("Blockbuster Movies");
@@ -1146,15 +1185,15 @@ public class HomeActivity extends AppCompatActivity implements NavigationView.On
                             }
                         });
                     })
-                    .setNeutralButton("Server PHP Code", (dialog, which) -> {
-                        showServerPhpCodeDialog();
-                    })
                     .setNegativeButton("Logout Account", (dialog, which) -> {
-                        PreferenceUtils.logout(this);
-                        ServerApiManager.purgeExpiredPremiumChannels(channelDao);
-                        updateNavHeaderUI();
-                        Toast.makeText(this, "Logged out. Premium channels locked.", Toast.LENGTH_LONG).show();
-                        syncChannelsFromServer();
+                        showLoadingSpinner("Logging out from Server...");
+                        ServerApiManager.logoutUser(this, () -> {
+                            hideLoadingSpinner();
+                            ServerApiManager.purgeExpiredPremiumChannels(channelDao);
+                            updateNavHeaderUI();
+                            Toast.makeText(HomeActivity.this, "Logged out successfully. Device unbound.", Toast.LENGTH_LONG).show();
+                            syncChannelsFromServer();
+                        });
                     })
                     .show();
             return;
@@ -1204,50 +1243,11 @@ public class HomeActivity extends AppCompatActivity implements NavigationView.On
                 .show();
     }
 
-    private void showServerPhpCodeDialog() {
-        String phpCode = ServerApiManager.getSampleServerPhpCode();
-        android.widget.ScrollView scrollView = new android.widget.ScrollView(this);
-        TextView textView = new TextView(this);
-        textView.setText(phpCode);
-        textView.setTextSize(12f);
-        textView.setPadding(32, 32, 32, 32);
-        textView.setTextColor(getResources().getColor(R.color.text_primary));
-        textView.setTypeface(android.graphics.Typeface.MONOSPACE);
-        scrollView.addView(textView);
-
-        new AlertDialog.Builder(this)
-                .setTitle("Server API Script (PHP)")
-                .setView(scrollView)
-                .setPositiveButton("Copy PHP Code", (dialog, which) -> {
-                    android.content.ClipboardManager clipboard = (android.content.ClipboardManager) getSystemService(android.content.Context.CLIPBOARD_SERVICE);
-                    android.content.ClipData clip = android.content.ClipData.newPlainText("IPTV Server PHP Code", phpCode);
-                    if (clipboard != null) {
-                        clipboard.setPrimaryClip(clip);
-                        Toast.makeText(this, "PHP Server Code copied to clipboard!", Toast.LENGTH_SHORT).show();
-                    }
-                })
-                .setNegativeButton("Close", null)
-                .show();
-    }
-
     private void loadChannels() {
-        if (channelDao != null) {
-            currentChannels = channelDao.getAllChannels();
-        } else {
-            currentChannels = new ArrayList<>();
-        }
         currentMainTab = "tv";
         showMainChannelsView();
-
-        if (currentChannels != null && !currentChannels.isEmpty()) {
-            isInitialDataLoaded = true;
-            updateCategoriesFromChannels();
-            filterChannels();
-            checkAppUpdateFromApi();
-        } else if (!isInitialDataLoaded) {
-            syncChannelsFromServer();
-            checkAppUpdateFromApi();
-        }
+        syncChannelsFromServer();
+        checkAppUpdateFromApi();
     }
 
     private void syncChannelsFromServer() {
@@ -1285,6 +1285,7 @@ public class HomeActivity extends AppCompatActivity implements NavigationView.On
                     Toast.makeText(HomeActivity.this, "Content loaded.", Toast.LENGTH_SHORT).show();
                 }
                 filterChannels();
+                updateResumeStreamUI();
 
                 AppUpdateInfo updateInfo = ServerApiManager.getLatestAppUpdateInfo();
                 if (updateInfo != null) {
@@ -1298,20 +1299,16 @@ public class HomeActivity extends AppCompatActivity implements NavigationView.On
             @Override
             public void onError(String errorMessage) {
                 hideLoadingSpinner();
-                if (channelDao != null) {
-                    currentChannels = channelDao.getAllChannels();
+                isInitialDataLoaded = false;
+                currentChannels = new ArrayList<>();
+                if (channelAdapter != null) {
+                    channelAdapter.updateList(new ArrayList<>());
                 }
-                if (currentChannels != null && !currentChannels.isEmpty()) {
-                    isInitialDataLoaded = true;
-                    hideFullscreenStatusUI();
-                    updateCategoriesFromChannels();
-                    filterChannels();
-                    Toast.makeText(HomeActivity.this, "Offline Mode: Using cached channels.", Toast.LENGTH_SHORT).show();
-                } else if (errorMessage != null && errorMessage.startsWith(Config.MAINTENANCE_STATUS_CODE)) {
-                    showFullscreenStatusUI(errorMessage);
-                } else {
-                    showFullscreenStatusUI(errorMessage);
-                }
+                PreferenceUtils.clearLastPlayedStream(HomeActivity.this);
+                updateResumeStreamUI();
+
+                String displayError = (errorMessage != null && !errorMessage.isEmpty()) ? errorMessage : "SERVER ERROR: Server response not received.";
+                showFullscreenStatusUI(displayError);
             }
         });
     }
@@ -1518,10 +1515,53 @@ public class HomeActivity extends AppCompatActivity implements NavigationView.On
             apkUrl = "https://verify-app.alwaysdata.net/new/mobile/app-release.apk";
         }
 
-        Toast.makeText(this, "Starting APK download...", Toast.LENGTH_SHORT).show();
-        showLoadingSpinner("Downloading App Update APK...");
-
         final String finalUrl = apkUrl;
+
+        // Custom Progress Dialog for APK download
+        final android.app.Dialog progressDialog = new android.app.Dialog(this);
+        progressDialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        progressDialog.setCancelable(false);
+
+        LinearLayout dialogLayout = new LinearLayout(this);
+        dialogLayout.setOrientation(LinearLayout.VERTICAL);
+        dialogLayout.setPadding(60, 50, 60, 50);
+        dialogLayout.setBackgroundColor(Color.parseColor("#1E1E2E"));
+
+        TextView txtTitle = new TextView(this);
+        txtTitle.setText("Downloading App Update...");
+        txtTitle.setTextSize(18);
+        txtTitle.setTypeface(null, android.graphics.Typeface.BOLD);
+        txtTitle.setTextColor(Color.WHITE);
+        txtTitle.setPadding(0, 0, 0, 24);
+
+        ProgressBar progressBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        progressBar.setMax(100);
+        progressBar.setProgress(0);
+        progressBar.setProgressTintList(android.content.res.ColorStateList.valueOf(Color.parseColor("#3B82F6")));
+        progressBar.setLayoutParams(new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
+
+        TextView txtProgress = new TextView(this);
+        txtProgress.setText("Starting download 0% (0 MB / 0 MB)...");
+        txtProgress.setTextColor(Color.parseColor("#9CA3AF"));
+        txtProgress.setTextSize(13);
+        txtProgress.setPadding(0, 16, 0, 0);
+
+        dialogLayout.addView(txtTitle);
+        dialogLayout.addView(progressBar);
+        dialogLayout.addView(txtProgress);
+
+        progressDialog.setContentView(dialogLayout);
+        if (progressDialog.getWindow() != null) {
+            progressDialog.getWindow().setLayout(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+            );
+        }
+        progressDialog.show();
+
         new Thread(() -> {
             try {
                 java.net.URL url = new java.net.URL(finalUrl);
@@ -1530,6 +1570,8 @@ public class HomeActivity extends AppCompatActivity implements NavigationView.On
                 conn.setReadTimeout(20000);
                 conn.setInstanceFollowRedirects(true);
                 conn.connect();
+
+                int fileLength = conn.getContentLength();
 
                 java.io.File downloadsDir = getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS);
                 if (downloadsDir != null && !downloadsDir.exists()) {
@@ -1544,10 +1586,31 @@ public class HomeActivity extends AppCompatActivity implements NavigationView.On
                 java.io.InputStream input = conn.getInputStream();
                 java.io.FileOutputStream output = new java.io.FileOutputStream(outputFile);
 
-                byte[] data = new byte[4096];
+                byte[] data = new byte[8192];
                 int count;
+                long total = 0;
+                long lastProgressUpdate = 0;
+
                 while ((count = input.read(data)) != -1) {
+                    total += count;
                     output.write(data, 0, count);
+
+                    long now = System.currentTimeMillis();
+                    if (now - lastProgressUpdate > 100 || total == fileLength) {
+                        lastProgressUpdate = now;
+                        final long currentTotal = total;
+                        final int percent = (fileLength > 0) ? (int) ((currentTotal * 100) / fileLength) : 0;
+                        new Handler(Looper.getMainLooper()).post(() -> {
+                            progressBar.setProgress(percent);
+                            float mbDownloaded = currentTotal / (1024f * 1024f);
+                            if (fileLength > 0) {
+                                float mbTotal = fileLength / (1024f * 1024f);
+                                txtProgress.setText(String.format(Locale.US, "Downloading... %d%% (%.2f MB / %.2f MB)", percent, mbDownloaded, mbTotal));
+                            } else {
+                                txtProgress.setText(String.format(Locale.US, "Downloaded %.2f MB", mbDownloaded));
+                            }
+                        });
+                    }
                 }
 
                 output.flush();
@@ -1555,14 +1618,18 @@ public class HomeActivity extends AppCompatActivity implements NavigationView.On
                 input.close();
 
                 new Handler(Looper.getMainLooper()).post(() -> {
-                    hideLoadingSpinner();
+                    if (progressDialog.isShowing()) {
+                        progressDialog.dismiss();
+                    }
                     Toast.makeText(HomeActivity.this, "Download complete! Opening installer...", Toast.LENGTH_SHORT).show();
                     installDownloadedApk(outputFile);
                 });
 
             } catch (Exception e) {
                 new Handler(Looper.getMainLooper()).post(() -> {
-                    hideLoadingSpinner();
+                    if (progressDialog.isShowing()) {
+                        progressDialog.dismiss();
+                    }
                     Toast.makeText(HomeActivity.this, "Download failed: " + e.getMessage(), Toast.LENGTH_LONG).show();
                 });
             }
@@ -1723,6 +1790,9 @@ public class HomeActivity extends AppCompatActivity implements NavigationView.On
     @Override
     protected void onResume() {
         super.onResume();
+        if (shimmerFrameLayout != null && layoutShimmer != null && layoutShimmer.getVisibility() == View.VISIBLE) {
+            shimmerFrameLayout.startShimmer();
+        }
         updateNavHeaderUI();
         updateResumeStreamUI();
         if (PreferenceUtils.isLoggedIn(this) && !PreferenceUtils.isSubscriptionValid(this)) {
@@ -1751,6 +1821,9 @@ public class HomeActivity extends AppCompatActivity implements NavigationView.On
     @Override
     protected void onPause() {
         super.onPause();
+        if (shimmerFrameLayout != null) {
+            shimmerFrameLayout.stopShimmer();
+        }
         realTimeSyncHandler.removeCallbacks(realTimeSyncRunnable);
     }
 
@@ -1813,7 +1886,7 @@ public class HomeActivity extends AppCompatActivity implements NavigationView.On
                         ChannelEntity entity = new ChannelEntity(
                                 name,
                                 url,
-                                "https://images.unsplash.com/photo-1594909122845-11baa439b7bf?w=400",
+                                "",
                                 (currentMainTab != null && !currentMainTab.isEmpty()) ? currentMainTab : "tv",
                                 "Custom Stream",
                                 false,
@@ -1845,9 +1918,12 @@ public class HomeActivity extends AppCompatActivity implements NavigationView.On
     }
 
     private void showCopyrightDialog() {
+        String verName = BuildConfig.VERSION_NAME;
+        int verCode = BuildConfig.VERSION_CODE;
         new AlertDialog.Builder(this)
-                .setTitle("Copyright & Legal Information")
-                .setMessage("Live TV Player does not host or store any video media streams. All stream links provided are freely available on the open web and public IPTV channels under Fair Use guidelines.")
+                .setTitle("About & Legal (v" + verName + ")")
+                .setMessage("Live TV & Movies Player v" + verName + " (Build " + verCode + ")\n\n" +
+                        "Live TV Player does not host or store any video media streams on its servers. All stream links provided are freely available on the open web and public IPTV channels under Fair Use guidelines.")
                 .setPositiveButton("I Understand", null)
                 .show();
     }
@@ -2036,7 +2112,7 @@ public class HomeActivity extends AppCompatActivity implements NavigationView.On
                             title,
                             "Custom M3U Stream Playlist",
                             title,
-                            "https://images.unsplash.com/photo-1594909122845-11baa439b7bf?w=400",
+                            "",
                             channels.size()
                     );
 
@@ -2146,45 +2222,15 @@ public class HomeActivity extends AppCompatActivity implements NavigationView.On
         });
     }
 
+    private boolean isStreamPremium(String cat, String title) {
+        if (cat == null) cat = "";
+        if (title == null) title = "";
+        String lower = (cat + " " + title).toLowerCase();
+        return lower.contains("vip") || lower.contains("premium") || lower.contains("paid") || lower.contains("subscription");
+    }
+
     private void updateResumeStreamUI() {
-        if (cardResumeStream == null) return;
-        if (PreferenceUtils.hasLastPlayedStream(this)) {
-            cardResumeStream.setVisibility(View.VISIBLE);
-            String title = PreferenceUtils.getLastPlayedTitle(this);
-            String cat = PreferenceUtils.getLastPlayedCategory(this);
-            String logo = PreferenceUtils.getLastPlayedLogo(this);
-            String type = PreferenceUtils.getLastPlayedType(this);
-            String url = PreferenceUtils.getLastPlayedStreamUrl(this);
-            int chId = PreferenceUtils.getLastPlayedId(this);
-
-            if (txtResumeTitle != null) txtResumeTitle.setText(title);
-            if (txtResumeSubtitle != null) {
-                String catDisplay = (cat != null && !cat.isEmpty()) ? cat.toUpperCase() : "LIVE TV";
-                txtResumeSubtitle.setText(catDisplay + " • Tap to resume playback");
-            }
-            if (imgResumeLogo != null) {
-                Glide.with(this)
-                        .load(logo)
-                        .placeholder(R.drawable.img_app_logo)
-                        .error(R.drawable.img_app_logo)
-                        .into(imgResumeLogo);
-            }
-
-            View.OnClickListener playListener = v -> {
-                boolean isMovie = "movie".equalsIgnoreCase(cat) || (type != null && type.toLowerCase().contains("mp4"));
-                Intent intent = new Intent(HomeActivity.this, isMovie ? LandscapeActivity.class : PlayerActivity.class);
-                intent.putExtra("channel_id", chId);
-                intent.putExtra("stream_url", url);
-                intent.putExtra("stream_title", title);
-                intent.putExtra("stream_category", cat);
-                intent.putExtra("stream_type", type);
-                intent.putExtra("logo_url", logo);
-                startActivity(intent);
-            };
-
-            cardResumeStream.setOnClickListener(playListener);
-            if (btnResumePlay != null) btnResumePlay.setOnClickListener(playListener);
-        } else {
+        if (cardResumeStream != null) {
             cardResumeStream.setVisibility(View.GONE);
         }
     }

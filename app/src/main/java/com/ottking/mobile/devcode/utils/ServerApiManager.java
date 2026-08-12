@@ -42,6 +42,10 @@ public class ServerApiManager {
         void onError(String errorMessage);
     }
 
+    public interface LogoutCallback {
+        void onComplete();
+    }
+
     public interface NotificationSyncCallback {
         void onSuccess(List<com.ottking.mobile.devcode.model.NotificationModel> notifications, int newCount);
         void onError(String errorMessage);
@@ -209,6 +213,58 @@ public class ServerApiManager {
                 final String finalErr = "Server Connection Failed: " + msg;
                 mainHandler.post(() -> {
                     if (callback != null) callback.onError(finalErr);
+                });
+            }
+        });
+    }
+
+    public static void logoutUser(Context context, LogoutCallback callback) {
+        String username = PreferenceUtils.getUserEmail(context);
+        if (username == null || username.isEmpty() || username.equals("guest@streamtv.com")) {
+            username = PreferenceUtils.getUserName(context);
+        }
+        final String userToLogout = username;
+        executor.execute(() -> {
+            try {
+                String apiUrl = PreferenceUtils.getApiUrl(context);
+                String apiKey = PreferenceUtils.getApiKey(context);
+                String hmacKey = PreferenceUtils.getHmacKey(context);
+                String deviceId = PreferenceUtils.getDeviceId(context);
+
+                String targetUrl = apiUrl;
+                if (targetUrl.contains("?")) {
+                    targetUrl += "&route=" + Config.ROUTE_LOGOUT;
+                } else if (targetUrl.endsWith(".php") || targetUrl.endsWith("/")) {
+                    targetUrl += "?route=" + Config.ROUTE_LOGOUT;
+                } else {
+                    targetUrl += "/" + Config.ROUTE_LOGOUT;
+                }
+
+                String bindParam = "username=" + java.net.URLEncoder.encode(userToLogout != null ? userToLogout : "", "UTF-8")
+                        + "&device_id=" + java.net.URLEncoder.encode(deviceId, "UTF-8");
+                if (targetUrl.contains("?")) {
+                    targetUrl += "&" + bindParam;
+                } else {
+                    targetUrl += "?" + bindParam;
+                }
+
+                URL urlObj = new URL(targetUrl);
+                String path = urlObj.getPath();
+                if (path == null || path.isEmpty()) path = "/index.php";
+                if (urlObj.getQuery() != null && !urlObj.getQuery().isEmpty()) path += "?" + urlObj.getQuery();
+
+                long timestamp = System.currentTimeMillis();
+                String hmacData = timestamp + path;
+                String signature = CryptoUtils.generateHmacSha256(hmacData, hmacKey);
+
+                IptvApiService apiService = RetrofitClient.getApiService(targetUrl);
+                Call<ResponseBody> call = apiService.fetchFromDynamicUrl(targetUrl, apiKey, String.valueOf(timestamp), signature);
+                call.execute();
+            } catch (Exception ignored) {
+            } finally {
+                PreferenceUtils.logout(context);
+                mainHandler.post(() -> {
+                    if (callback != null) callback.onComplete();
                 });
             }
         });
@@ -559,8 +615,12 @@ public class ServerApiManager {
                         String waUrl = jsonResponse.optString("whatsapp_url", jsonResponse.optString("whatsapp", ""));
                         String tgUrl = jsonResponse.optString("telegram_url", jsonResponse.optString("telegram", ""));
                         String devInfo = jsonResponse.optString("developer_info", jsonResponse.optString("dev_info", ""));
+                        String shareUrl = jsonResponse.optString("app_share_url", jsonResponse.optString("share_url", jsonResponse.optString("download_url", jsonResponse.optString("website_url", ""))));
                         if (!waUrl.isEmpty() || !tgUrl.isEmpty() || !devInfo.isEmpty()) {
                             PreferenceUtils.setSupportInfo(context, waUrl, tgUrl, devInfo);
+                        }
+                        if (!shareUrl.isEmpty()) {
+                            PreferenceUtils.setAppShareUrl(context, shareUrl);
                         }
 
                         // Parse category icons sent from server
@@ -602,11 +662,21 @@ public class ServerApiManager {
                     String status = jsonResponse != null ? jsonResponse.optString("status") : "";
                     if ("success".equalsIgnoreCase(status) || jsonResponse == null || responseString.trim().startsWith("[")) {
                         String iv = jsonResponse != null ? jsonResponse.optString("iv") : "";
-                        String encryptedData = jsonResponse != null ? jsonResponse.optString("data") : "";
+                        String encryptedData = jsonResponse != null ? jsonResponse.optString("encrypted_payload") : "";
+                        if (encryptedData == null || encryptedData.isEmpty()) {
+                            encryptedData = jsonResponse != null ? jsonResponse.optString("data") : "";
+                        }
 
                         String decryptedJson = null;
-                        if (encryptedData != null && !encryptedData.isEmpty() && iv != null && !iv.isEmpty()) {
-                            decryptedJson = CryptoUtils.decryptAes256Cbc(encryptedData, iv, encKey);
+                        if (encryptedData != null && !encryptedData.isEmpty()) {
+                            if (encryptedData.contains(".")) {
+                                decryptedJson = CryptoUtils.decryptAes256Gcm(encryptedData, encKey);
+                            } else if (iv != null && !iv.isEmpty()) {
+                                decryptedJson = CryptoUtils.decryptAes256Gcm(encryptedData, iv, encKey);
+                                if (decryptedJson == null || decryptedJson.isEmpty()) {
+                                    decryptedJson = CryptoUtils.decryptAes256Cbc(encryptedData, iv, encKey);
+                                }
+                            }
                         }
 
                         if (decryptedJson == null || decryptedJson.isEmpty()) {

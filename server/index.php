@@ -30,9 +30,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 // 1. Security Configuration
+require_once __DIR__ . '/Crypto_lib.php';
 $API_KEY = getenv('API_KEY') ?: "iptv_sec_api_key_2026";
 $HMAC_KEY = getenv('HMAC_KEY') ?: "iptv_hmac_secret_key_889900";
 $ENCRYPTION_KEY = getenv('ENCRYPTION_KEY') ?: "12345678901234567890123456789012";
+
+$cryptoEngine = new Crypto_lib();
+$cryptoEngine->set_keys($ENCRYPTION_KEY, $HMAC_KEY);
 
 // 2. Maintenance Mode Check
 $ENABLE_MAINTENANCE = false;
@@ -53,6 +57,30 @@ if ($MAINTENANCE_MODE) {
         "timestamp" => round(microtime(true) * 1000)
     ], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
     exit();
+}
+
+// 2.5 App Settings & External Links Configuration
+$settingsFile = __DIR__ . '/settings.json';
+$appSettings = [
+    "whatsapp_url" => "https://wa.me/8801700000000",
+    "telegram_url" => "https://t.me/telegram",
+    "app_share_url" => "https://verify-app.alwaysdata.net/download",
+    "developer_info" => "Official Stream IPTV Engine v2.0.0\nPowered by Secure Cloud Infrastructure & Real-Time AES-256 Content Delivery System.",
+    "version_code" => 2,
+    "version_name" => "2.0.0",
+    "min_version_code" => 1,
+    "force_update" => false,
+    "title" => "🚀 New Version 2.0.0 Available!",
+    "message" => "A new update for Live TV Player is available with improved video playback, better stability, and new features.",
+    "download_url" => "https://verify-app.alwaysdata.net/new/mobile/app-release.apk",
+    "release_notes" => "• Faster HD stream loading\n• Enhanced video player controls\n• Automatic category filtering\n• Performance and bug fixes"
+];
+
+if (file_exists($settingsFile)) {
+    $saved = json_decode(file_get_contents($settingsFile), true);
+    if (is_array($saved)) {
+        $appSettings = array_merge($appSettings, $saved);
+    }
 }
 
 function getHeader($name) {
@@ -148,15 +176,19 @@ if ($route === 'update' || $route === 'check_update') {
     echo json_encode([
         "status" => "success",
         "route" => "update",
+        "whatsapp_url" => $appSettings['whatsapp_url'],
+        "telegram_url" => $appSettings['telegram_url'],
+        "app_share_url" => $appSettings['app_share_url'],
+        "developer_info" => $appSettings['developer_info'],
         "app_update" => [
-            "version_code" => 2,
-            "version_name" => "2.0.0",
-            "min_version_code" => 1,
-            "force_update" => false,
-            "title" => "🚀 New Version 2.0.0 Available!",
-            "message" => "A new update for Live TV Player is available with improved video playback, better stability, and new features.",
-            "download_url" => "https://verify-app.alwaysdata.net/new/mobile/app-release.apk",
-            "release_notes" => "• Faster HD stream loading\n• Enhanced video player controls\n• Automatic category filtering\n• Performance and bug fixes",
+            "version_code" => (int)$appSettings['version_code'],
+            "version_name" => $appSettings['version_name'],
+            "min_version_code" => (int)$appSettings['min_version_code'],
+            "force_update" => (bool)$appSettings['force_update'],
+            "title" => $appSettings['title'],
+            "message" => $appSettings['message'],
+            "download_url" => $appSettings['download_url'],
+            "release_notes" => $appSettings['release_notes'],
             "update_time" => date('Y-m-d')
         ]
     ], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
@@ -202,13 +234,16 @@ if ($route === 'login') {
         exit();
     }
 
+    $matchedUserKey = null;
     $matchedUser = null;
     if (isset($usersDb[$username])) {
+        $matchedUserKey = $username;
         $matchedUser = $usersDb[$username];
     } else {
         // Search by email or lowercase
         foreach ($usersDb as $k => $u) {
             if (strcasecmp($k, $username) === 0 || (!empty($u['email']) && strcasecmp($u['email'], $username) === 0)) {
+                $matchedUserKey = $k;
                 $matchedUser = $u;
                 break;
             }
@@ -224,6 +259,27 @@ if ($route === 'login') {
             exit();
         }
 
+        // --- Device Binding Check ---
+        $boundDevice = $matchedUser['bound_device_id'] ?? '';
+        if (!empty($boundDevice) && $boundDevice !== $deviceId) {
+            http_response_code(403);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Account already bound to another device. Please logout from your previous device first, or ask admin to reset device binding."
+            ], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+            exit();
+        }
+
+        // Bind device to account and update JSON
+        foreach ($usersDb as $k => &$u) {
+            if (strcasecmp($k, $username) === 0 || (!empty($u['email']) && strcasecmp($u['email'], $username) === 0) || (isset($matchedUser['email']) && !empty($u['email']) && strcasecmp($u['email'], $matchedUser['email']) === 0)) {
+                $u['bound_device_id'] = $deviceId;
+                $u['last_login_time'] = date('Y-m-d H:i:s');
+            }
+        }
+        unset($u);
+        file_put_contents($usersFile, json_encode($usersDb, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+
         $expiryTimestamp = $matchedUser['expiry_timestamp'] ?? strtotime($matchedUser['expiry_date'] ?? 'now') * 1000;
         $isSubActive = ($currentTimeMs < $expiryTimestamp);
         $subStatus = $isSubActive ? "ACTIVE" : "EXPIRED";
@@ -238,6 +294,7 @@ if ($route === 'login') {
             "username" => $dispUser,
             "email" => $email,
             "device_id" => $deviceId,
+            "bound_device_id" => $deviceId,
             "plan" => $planName,
             "subscription_status" => $subStatus,
             "expiry_timestamp" => $expiryTimestamp,
@@ -252,6 +309,31 @@ if ($route === 'login') {
         ], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
         exit();
     }
+}
+
+// 8.2 User Logout Endpoint
+if ($route === 'logout') {
+    $username = trim($_POST['username'] ?? $_GET['username'] ?? $_GET['user_id'] ?? $_POST['user_id'] ?? '');
+    $deviceId = trim($_GET['device_id'] ?? $_POST['device_id'] ?? '');
+
+    if (!empty($username)) {
+        foreach ($usersDb as $k => &$u) {
+            if (strcasecmp($k, $username) === 0 || (!empty($u['email']) && strcasecmp($u['email'], $username) === 0)) {
+                if (empty($deviceId) || empty($u['bound_device_id']) || $u['bound_device_id'] === $deviceId) {
+                    $u['bound_device_id'] = "";
+                }
+            }
+        }
+        unset($u);
+        file_put_contents($usersFile, json_encode($usersDb, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+    }
+
+    http_response_code(200);
+    echo json_encode([
+        "status" => "success",
+        "message" => "Logged out and device binding cleared."
+    ], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+    exit();
 }
 
 // 8.5 Session Validation Endpoint
@@ -280,6 +362,16 @@ if ($route === 'session_check') {
     $currentTimeMs = round(microtime(true) * 1000);
 
     if ($matchedUser !== null) {
+        $boundDevice = $matchedUser['bound_device_id'] ?? '';
+        if (!empty($boundDevice) && !empty($deviceId) && $boundDevice !== $deviceId) {
+            http_response_code(403);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Real-time device tracking: Device binding mismatch. Account logged in on another device."
+            ], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+            exit();
+        }
+
         $expiryTimestamp = $matchedUser['expiry_timestamp'] ?? strtotime($matchedUser['expiry_date'] ?? 'now') * 1000;
         $isSubActive = ($currentTimeMs < $expiryTimestamp);
         $subStatus = $isSubActive ? "ACTIVE" : "EXPIRED";
@@ -294,6 +386,7 @@ if ($route === 'session_check') {
             "username" => $dispUser,
             "email" => $email,
             "device_id" => $deviceId,
+            "bound_device_id" => $boundDevice,
             "plan" => $planName,
             "subscription_status" => $subStatus,
             "expiry_timestamp" => $expiryTimestamp,
@@ -310,24 +403,37 @@ if ($route === 'session_check') {
     }
 }
 
-// 9. Check Subscription Status for Content Requests
+// 9. Check Subscription Status for Content Requests & Real-Time Device Tracking
 $userId = $_GET['user_id'] ?? $_POST['username'] ?? $_GET['username'] ?? '';
 $deviceId = $_GET['device_id'] ?? $_POST['device_id'] ?? '';
 
 $isSubscriptionValid = false;
 
 if (!empty($userId)) {
+    $foundUser = null;
     if (isset($usersDb[$userId])) {
-        $expiryTs = $usersDb[$userId]['expiry_timestamp'] ?? strtotime($usersDb[$userId]['expiry_date'] ?? 'now') * 1000;
-        $isSubscriptionValid = (round(microtime(true) * 1000) < $expiryTs);
+        $foundUser = $usersDb[$userId];
     } else {
         foreach ($usersDb as $k => $u) {
             if (strcasecmp($k, $userId) === 0 || (!empty($u['email']) && strcasecmp($u['email'], $userId) === 0)) {
-                $expiryTs = $u['expiry_timestamp'] ?? strtotime($u['expiry_date'] ?? 'now') * 1000;
-                $isSubscriptionValid = (round(microtime(true) * 1000) < $expiryTs);
+                $foundUser = $u;
                 break;
             }
         }
+    }
+
+    if ($foundUser !== null) {
+        $bound = $foundUser['bound_device_id'] ?? '';
+        if (!empty($bound) && !empty($deviceId) && $bound !== $deviceId) {
+            http_response_code(403);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Real-time device tracking: Account active on another device. Access denied."
+            ], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+            exit();
+        }
+        $expiryTs = $foundUser['expiry_timestamp'] ?? strtotime($foundUser['expiry_date'] ?? 'now') * 1000;
+        $isSubscriptionValid = (round(microtime(true) * 1000) < $expiryTs);
     }
 }
 
@@ -372,9 +478,9 @@ foreach ($allChannels as $item) {
 
 $rawJsonPayload = json_encode($filteredData);
 
-// 11. Encrypt Payload using AES-256-CBC
-$iv = openssl_random_pseudo_bytes(16);
-$encryptedRaw = openssl_encrypt($rawJsonPayload, 'aes-256-cbc', $ENCRYPTION_KEY, OPENSSL_RAW_DATA, $iv);
+// 11. Encrypt Payload using AES-256-GCM & HMAC-SHA256
+$encryptedPayload = $cryptoEngine->encrypt_payload($rawJsonPayload);
+$signature = $cryptoEngine->sign_payload($rawJsonPayload);
 
 http_response_code(200);
 echo json_encode([
@@ -382,18 +488,35 @@ echo json_encode([
     "route" => $route,
     "timestamp" => round(microtime(true) * 1000),
     "subscription_status" => $isSubscriptionValid ? "ACTIVE" : "EXPIRED",
+    "whatsapp_url" => $appSettings['whatsapp_url'],
+    "telegram_url" => $appSettings['telegram_url'],
+    "app_share_url" => $appSettings['app_share_url'],
+    "developer_info" => $appSettings['developer_info'],
+    "category_icons" => [
+        "All" => "https://images.unsplash.com/photo-1593784991095-a205069470b6?w=200",
+        "Sports" => "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=200",
+        "Sports VIP" => "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=200",
+        "News" => "https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=200",
+        "Entertainment" => "https://images.unsplash.com/photo-1522869635100-9f4c5e86aa37?w=200",
+        "Movies" => "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=200",
+        "Action" => "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=200",
+        "Drama" => "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=200",
+        "Sci-Fi" => "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=200",
+        "Music" => "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=200"
+    ],
     "count" => count($filteredData),
-    "iv" => bin2hex($iv),
-    "data" => bin2hex($encryptedRaw),
+    "encrypted_payload" => $encryptedPayload,
+    "signature" => $signature,
+    "data" => $encryptedPayload,
     "app_update" => [
-        "version_code" => 2,
-        "version_name" => "2.0.0",
-        "min_version_code" => 1,
-        "force_update" => false,
-        "title" => "🚀 New Version 2.0.0 Available!",
-        "message" => "A new update for Live TV Player is available with improved video playback, better stability, and new features.",
-        "download_url" => "https://verify-app.alwaysdata.net/new/mobile/app-release.apk",
-        "release_notes" => "• Faster HD stream loading\n• Enhanced video player controls\n• Automatic category filtering\n• Performance and bug fixes",
+        "version_code" => (int)$appSettings['version_code'],
+        "version_name" => $appSettings['version_name'],
+        "min_version_code" => (int)$appSettings['min_version_code'],
+        "force_update" => (bool)$appSettings['force_update'],
+        "title" => $appSettings['title'],
+        "message" => $appSettings['message'],
+        "download_url" => $appSettings['download_url'],
+        "release_notes" => $appSettings['release_notes'],
         "update_time" => date('Y-m-d')
     ]
 ], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);

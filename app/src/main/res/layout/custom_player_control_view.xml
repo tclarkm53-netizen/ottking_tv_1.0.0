@@ -142,6 +142,86 @@
             app:tint="@color/white" />
     </LinearLayout>
 
+    <!-- Double-Tap Rewind Overlay (Left Side) -->
+    <LinearLayout
+        android:id="@+id/layoutDoubleTapRewind"
+        android:layout_width="110dp"
+        android:layout_height="110dp"
+        android:layout_alignParentStart="true"
+        android:layout_centerVertical="true"
+        android:layout_marginStart="48dp"
+        android:background="@drawable/bg_double_tap_pill"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="12dp"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/imgDoubleTapRewind"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:contentDescription="@string/player_rewind_label"
+            android:src="@drawable/ic_rewind"
+            app:tint="@color/white" />
+
+        <TextView
+            android:id="@+id/txtDoubleTapRewind"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="@string/player_rewind_10s"
+            android:textColor="@color/white"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/player_rewind_label"
+            android:textColor="@color/text_secondary"
+            android:textSize="10sp" />
+    </LinearLayout>
+
+    <!-- Double-Tap Forward Overlay (Right Side) -->
+    <LinearLayout
+        android:id="@+id/layoutDoubleTapForward"
+        android:layout_width="110dp"
+        android:layout_height="110dp"
+        android:layout_alignParentEnd="true"
+        android:layout_centerVertical="true"
+        android:layout_marginEnd="48dp"
+        android:background="@drawable/bg_double_tap_pill"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="12dp"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/imgDoubleTapForward"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:contentDescription="@string/player_forward_label"
+            android:src="@drawable/ic_forward"
+            app:tint="@color/white" />
+
+        <TextView
+            android:id="@+id/txtDoubleTapForward"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="@string/player_forward_10s"
+            android:textColor="@color/white"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/player_forward_label"
+            android:textColor="@color/text_secondary"
+            android:textSize="10sp" />
+    </LinearLayout>
+
     <!-- Gesture Volume / Brightness Indicator Card Overlay -->
     <androidx.cardview.widget.CardView
         android:id="@+id/cardGestureOverlay"

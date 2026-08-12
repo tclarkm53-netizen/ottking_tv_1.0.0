@@ -72,6 +72,9 @@ public class LandscapeActivity extends AppCompatActivity {
     private String streamType;
     private String streamTitle;
     private String streamCategory;
+    private String logoUrl = "";
+    private int channelId = 0;
+    private boolean hasRestoredPlaybackPosition = false;
     private int selectedQualityIndex = 0;
     private int currentAspectRatioMode = AspectRatioFrameLayout.RESIZE_MODE_FIT;
 
@@ -368,17 +371,28 @@ public class LandscapeActivity extends AppCompatActivity {
         hideSystemUi();
 
         Intent intent = getIntent();
+        channelId = intent.getIntExtra("channel_id", 0);
         streamUrl = intent.getStringExtra("stream_url");
         streamType = intent.getStringExtra("stream_type");
         streamTitle = intent.getStringExtra("stream_title");
         streamCategory = intent.getStringExtra("stream_category");
+        logoUrl = intent.getStringExtra("logo_url");
 
         if (streamUrl == null || streamUrl.isEmpty()) {
-            if (PreferenceUtils.hasLastPlayedStream(this)) {
+            if (PreferenceUtils.hasLastPlayedMovie(this)) {
+                channelId = PreferenceUtils.getLastPlayedMovieId(this);
+                streamUrl = PreferenceUtils.getLastPlayedMovieUrl(this);
+                streamTitle = PreferenceUtils.getLastPlayedMovieTitle(this);
+                streamCategory = PreferenceUtils.getLastPlayedMovieCategory(this);
+                streamType = PreferenceUtils.getLastPlayedMovieType(this);
+                logoUrl = PreferenceUtils.getLastPlayedMovieLogo(this);
+            } else if (PreferenceUtils.hasLastPlayedStream(this)) {
+                channelId = PreferenceUtils.getLastPlayedId(this);
                 streamUrl = PreferenceUtils.getLastPlayedStreamUrl(this);
                 streamTitle = PreferenceUtils.getLastPlayedTitle(this);
                 streamCategory = PreferenceUtils.getLastPlayedCategory(this);
                 streamType = PreferenceUtils.getLastPlayedType(this);
+                logoUrl = PreferenceUtils.getLastPlayedLogo(this);
             } else {
                 streamUrl = "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8";
                 streamTitle = "Blockbuster Movie Stream";
@@ -519,7 +533,7 @@ public class LandscapeActivity extends AppCompatActivity {
                 if (player != null) {
                     long newPos = Math.max(0, player.getCurrentPosition() - 10000);
                     player.seekTo(newPos);
-                    Toast.makeText(this, "⏪ 10s Rewind", Toast.LENGTH_SHORT).show();
+                    showDoubleTapOverlay(false, 10000);
                 }
             });
         }
@@ -531,7 +545,7 @@ public class LandscapeActivity extends AppCompatActivity {
                     long maxDur = player.getDuration() > 0 ? player.getDuration() : Long.MAX_VALUE;
                     long newPos = Math.min(maxDur, player.getCurrentPosition() + 10000);
                     player.seekTo(newPos);
-                    Toast.makeText(this, "⏩ 10s Forward", Toast.LENGTH_SHORT).show();
+                    showDoubleTapOverlay(true, 10000);
                 }
             });
         }
@@ -670,6 +684,21 @@ public class LandscapeActivity extends AppCompatActivity {
                         if (btnPlayPause != null) {
                             btnPlayPause.setVisibility(View.VISIBLE);
                             btnPlayPause.setImageResource(player != null && player.isPlaying() ? R.drawable.ic_pause : R.drawable.ic_play);
+                        }
+
+                        if (!hasRestoredPlaybackPosition && player != null) {
+                            long targetSeek = getIntent().getLongExtra("seek_position", -1);
+                            if (targetSeek <= 0 && streamUrl != null) {
+                                targetSeek = PreferenceUtils.getStreamPlaybackPosition(LandscapeActivity.this, streamUrl);
+                            }
+                            if (targetSeek > 0 && player.getDuration() > 0 && targetSeek < player.getDuration() - 2000) {
+                                player.seekTo(targetSeek);
+                                showDoubleTapOverlay(true, targetSeek);
+                                if (txtGestureTitle != null) {
+                                    txtGestureTitle.setText(getString(R.string.resume_playback_from, formatTime(targetSeek)));
+                                }
+                            }
+                            hasRestoredPlaybackPosition = true;
                         }
                     } else if (playbackState == Player.STATE_ENDED) {
                         if (progressBarBuffer != null) progressBarBuffer.setVisibility(View.GONE);
@@ -874,12 +903,12 @@ public class LandscapeActivity extends AppCompatActivity {
                     if (e.getX() < viewWidth / 2f) {
                         long newPos = Math.max(0, player.getCurrentPosition() - 10000);
                         player.seekTo(newPos);
-                        Toast.makeText(LandscapeActivity.this, "⏪ 10s Rewind", Toast.LENGTH_SHORT).show();
+                        showDoubleTapOverlay(false, 10000);
                     } else {
                         long maxDur = player.getDuration() > 0 ? player.getDuration() : Long.MAX_VALUE;
                         long newPos = Math.min(maxDur, player.getCurrentPosition() + 10000);
                         player.seekTo(newPos);
-                        Toast.makeText(LandscapeActivity.this, "⏩ 10s Forward", Toast.LENGTH_SHORT).show();
+                        showDoubleTapOverlay(true, 10000);
                     }
                     return true;
                 }
@@ -1131,10 +1160,37 @@ public class LandscapeActivity extends AppCompatActivity {
         }
     }
 
+    private void showDoubleTapOverlay(boolean isForward, long amountMs) {
+        if (cardGestureOverlay != null) {
+            hideGestureOverlayHandler.removeCallbacks(hideGestureOverlayRunnable);
+            if (imgGestureIcon != null) {
+                imgGestureIcon.setImageResource(isForward ? R.drawable.ic_forward : R.drawable.ic_rewind);
+            }
+            if (txtGestureTitle != null) {
+                txtGestureTitle.setText(isForward ? "⏩ +10s Forward" : "⏪ -10s Rewind");
+            }
+            if (progressGesture != null) {
+                progressGesture.setVisibility(View.GONE);
+            }
+            cardGestureOverlay.setAlpha(0f);
+            cardGestureOverlay.setVisibility(View.VISIBLE);
+            cardGestureOverlay.animate()
+                    .alpha(1f)
+                    .setDuration(150)
+                    .setListener(null);
+
+            hideGestureOverlayHandler.postDelayed(hideGestureOverlayRunnable, 800);
+        }
+    }
+
     private void saveCurrentPlaybackState() {
         if (player != null && streamUrl != null && !streamUrl.isEmpty()) {
             long pos = (!player.isCurrentMediaItemLive() && player.getDuration() > 0) ? player.getCurrentPosition() : 0;
-            PreferenceUtils.saveLastPlayedStream(this, 0, streamUrl, streamTitle, streamType, streamCategory, "", pos);
+            long dur = (!player.isCurrentMediaItemLive() && player.getDuration() > 0) ? player.getDuration() : 0;
+            PreferenceUtils.saveLastPlayedStream(this, channelId, streamUrl, streamTitle, streamType, streamCategory, logoUrl, pos, dur);
+            if (pos > 0) {
+                PreferenceUtils.saveStreamPlaybackPosition(this, streamUrl, pos, dur);
+            }
         }
     }
 

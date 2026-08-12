@@ -74,18 +74,21 @@ public class CategoryAdapter extends RecyclerView.Adapter<CategoryAdapter.Catego
         holder.txtChip.setText(catName);
 
         if (holder.imgIcon != null) {
+            holder.imgIcon.setVisibility(View.VISIBLE);
             if (iconUrl != null && !iconUrl.trim().isEmpty()) {
-                holder.imgIcon.setVisibility(View.VISIBLE);
                 Glide.with(context)
                         .load(iconUrl.trim())
                         .diskCacheStrategy(DiskCacheStrategy.ALL)
                         .skipMemoryCache(false)
-                        .placeholder(R.drawable.ic_tv)
-                        .error(R.drawable.ic_tv)
+                        .placeholder(R.drawable.img_app_logo)
+                        .error(R.drawable.img_app_logo)
                         .circleCrop()
                         .into(holder.imgIcon);
             } else {
-                holder.imgIcon.setVisibility(View.GONE);
+                Glide.with(context)
+                        .load(R.drawable.img_app_logo)
+                        .circleCrop()
+                        .into(holder.imgIcon);
             }
         }
 

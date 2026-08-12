@@ -24,6 +24,7 @@ public class PlaylistModel implements Serializable {
     public String getDescription() { return description; }
     public String getCategoryFilter() { return categoryFilter; }
     public String getIconUrl() { return iconUrl; }
+    public void setIconUrl(String iconUrl) { this.iconUrl = iconUrl; }
     public int getChannelCount() { return channelCount; }
     public void setChannelCount(int channelCount) { this.channelCount = channelCount; }
 }

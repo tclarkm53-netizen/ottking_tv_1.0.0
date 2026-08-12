@@ -24,6 +24,7 @@ import android.os.Looper;
 import android.provider.Settings;
 import android.util.Rational;
 import android.util.TypedValue;
+import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -123,6 +124,7 @@ public class PlayerActivity extends AppCompatActivity {
     private String streamUrl;
     private String streamTitle;
     private String streamCategory;
+    private boolean hasRestoredPlaybackPosition = false;
     private String streamType;
     private String logoUrl;
     private int channelId = -1;
@@ -504,14 +506,19 @@ public class PlayerActivity extends AppCompatActivity {
         btnRewind.setOnClickListener(v -> {
             resetControlsTimeout();
             if (player != null) {
-                player.seekTo(Math.max(0, player.getCurrentPosition() - 10000));
+                long newPos = Math.max(0, player.getCurrentPosition() - 10000);
+                player.seekTo(newPos);
+                showDoubleTapOverlay(false, 10000);
             }
         });
 
         btnForward.setOnClickListener(v -> {
             resetControlsTimeout();
             if (player != null) {
-                player.seekTo(player.getCurrentPosition() + 10000);
+                long maxDur = player.getDuration() > 0 ? player.getDuration() : Long.MAX_VALUE;
+                long newPos = Math.min(maxDur, player.getCurrentPosition() + 10000);
+                player.seekTo(newPos);
+                showDoubleTapOverlay(true, 10000);
             }
         });
 
@@ -590,11 +597,15 @@ public class PlayerActivity extends AppCompatActivity {
 
         btnShare.setOnClickListener(v -> {
             try {
+                String shareUrl = PreferenceUtils.getAppShareUrl(this);
+                String title = (streamTitle != null && !streamTitle.trim().isEmpty()) ? streamTitle.trim() : "Live Stream";
+                String shareText = "Download & Watch " + title + " on our app!\n" + shareUrl;
+
                 Intent shareIntent = new Intent(Intent.ACTION_SEND);
                 shareIntent.setType("text/plain");
-                shareIntent.putExtra(Intent.EXTRA_SUBJECT, streamTitle != null ? streamTitle : "Live Stream");
-                shareIntent.putExtra(Intent.EXTRA_TEXT, "Watch live stream: " + (streamTitle != null ? streamTitle : "Live Stream") + "\n" + (streamUrl != null ? streamUrl : ""));
-                startActivity(Intent.createChooser(shareIntent, "Share Stream via"));
+                shareIntent.putExtra(Intent.EXTRA_SUBJECT, "Watch " + title + " on OTT Stream App");
+                shareIntent.putExtra(Intent.EXTRA_TEXT, shareText);
+                startActivity(Intent.createChooser(shareIntent, "Share App Link via"));
             } catch (Exception e) {
                 Toast.makeText(this, "Unable to share stream", Toast.LENGTH_SHORT).show();
             }
@@ -616,6 +627,33 @@ public class PlayerActivity extends AppCompatActivity {
 
         final AudioManager audioManager = (AudioManager) getSystemService(AUDIO_SERVICE);
 
+        final GestureDetector gestureDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
+            @Override
+            public boolean onSingleTapConfirmed(@NonNull MotionEvent e) {
+                toggleControlsVisibility();
+                return true;
+            }
+
+            @Override
+            public boolean onDoubleTap(@NonNull MotionEvent e) {
+                int viewWidth = playerView.getWidth();
+                if (viewWidth > 0 && player != null) {
+                    if (e.getX() < viewWidth / 2f) {
+                        long newPos = Math.max(0, player.getCurrentPosition() - 10000);
+                        player.seekTo(newPos);
+                        showDoubleTapOverlay(false, 10000);
+                    } else {
+                        long maxDur = player.getDuration() > 0 ? player.getDuration() : Long.MAX_VALUE;
+                        long newPos = Math.min(maxDur, player.getCurrentPosition() + 10000);
+                        player.seekTo(newPos);
+                        showDoubleTapOverlay(true, 10000);
+                    }
+                    return true;
+                }
+                return super.onDoubleTap(e);
+            }
+        });
+
         View.OnTouchListener touchListener = new View.OnTouchListener() {
             private float startX = 0f;
             private float startY = 0f;
@@ -628,6 +666,8 @@ public class PlayerActivity extends AppCompatActivity {
 
             @Override
             public boolean onTouch(View v, MotionEvent event) {
+                gestureDetector.onTouchEvent(event);
+
                 int viewWidth = v.getWidth();
                 int viewHeight = v.getHeight();
                 if (viewWidth <= 0 || viewHeight <= 0) return false;
@@ -981,6 +1021,21 @@ public class PlayerActivity extends AppCompatActivity {
                             if (btnPlayPause != null) {
                                 btnPlayPause.setVisibility(View.VISIBLE);
                                 btnPlayPause.setImageResource(R.drawable.ic_pause);
+                            }
+
+                            if (!hasRestoredPlaybackPosition && player != null) {
+                                long targetSeek = getIntent().getLongExtra("seek_position", -1);
+                                if (targetSeek <= 0 && streamUrl != null) {
+                                    targetSeek = PreferenceUtils.getStreamPlaybackPosition(PlayerActivity.this, streamUrl);
+                                }
+                                if (targetSeek > 0 && player.getDuration() > 0 && targetSeek < player.getDuration() - 2000) {
+                                    player.seekTo(targetSeek);
+                                    showDoubleTapOverlay(true, targetSeek);
+                                    if (txtGestureTitle != null) {
+                                        txtGestureTitle.setText(getString(R.string.resume_playback_from, formatTime(targetSeek)));
+                                    }
+                                }
+                                hasRestoredPlaybackPosition = true;
                             }
                         } else if (playbackState == Player.STATE_ENDED) {
                             if (btnPlayPause != null) btnPlayPause.setImageResource(R.drawable.ic_play);
@@ -1391,10 +1446,37 @@ public class PlayerActivity extends AppCompatActivity {
         }
     }
 
+    private void showDoubleTapOverlay(boolean isForward, long amountMs) {
+        if (cardGestureOverlay != null) {
+            hideGestureOverlayHandler.removeCallbacks(hideGestureOverlayRunnable);
+            if (imgGestureIcon != null) {
+                imgGestureIcon.setImageResource(isForward ? R.drawable.ic_forward : R.drawable.ic_rewind);
+            }
+            if (txtGestureTitle != null) {
+                txtGestureTitle.setText(isForward ? "⏩ +10s Forward" : "⏪ -10s Rewind");
+            }
+            if (progressGesture != null) {
+                progressGesture.setVisibility(View.GONE);
+            }
+            cardGestureOverlay.setAlpha(0f);
+            cardGestureOverlay.setVisibility(View.VISIBLE);
+            cardGestureOverlay.animate()
+                    .alpha(1f)
+                    .setDuration(150)
+                    .setListener(null);
+
+            hideGestureOverlayHandler.postDelayed(hideGestureOverlayRunnable, 800);
+        }
+    }
+
     private void saveCurrentPlaybackState() {
         if (player != null && streamUrl != null && !streamUrl.isEmpty()) {
             long pos = (!player.isCurrentMediaItemLive() && player.getDuration() > 0) ? player.getCurrentPosition() : 0;
-            PreferenceUtils.saveLastPlayedStream(this, channelId, streamUrl, streamTitle, streamType, streamCategory, logoUrl, pos);
+            long dur = (!player.isCurrentMediaItemLive() && player.getDuration() > 0) ? player.getDuration() : 0;
+            PreferenceUtils.saveLastPlayedStream(this, channelId, streamUrl, streamTitle, streamType, streamCategory, logoUrl, pos, dur);
+            if (pos > 0) {
+                PreferenceUtils.saveStreamPlaybackPosition(this, streamUrl, pos, dur);
+            }
         }
     }
 

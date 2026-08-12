@@ -41,14 +41,18 @@ android {
 
   buildTypes {
     release {
-      isCrunchPngs = false
-      isMinifyEnabled = false
+      isCrunchPngs = true
+      isMinifyEnabled = true
+      isShrinkResources = true
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
       signingConfig = signingConfigs.getByName("release")
     }
     debug { signingConfig = signingConfigs.getByName("debugConfig") }
   }
-  
+  compileOptions {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+  }
   splits {
     abi {
       isEnable = true
@@ -70,15 +74,7 @@ android {
       )
     }
   }
-
   
-  
-  
-  
-  compileOptions {
-    sourceCompatibility = JavaVersion.VERSION_11
-    targetCompatibility = JavaVersion.VERSION_11
-  }
   buildFeatures {
     compose = true
     buildConfig = true
@@ -86,8 +82,6 @@ android {
   testOptions { unitTests { isIncludeAndroidResources = true } }
 }
 
-// Configure the Secrets Gradle Plugin to use .env and .env.example files
-// to match the convention used in Web projects.
 secrets {
   propertiesFileName = ".env"
   defaultPropertiesFileName = ".env.example"
@@ -95,8 +89,6 @@ secrets {
 
 googleServices { missingGoogleServicesStrategy = MissingGoogleServicesStrategy.WARN }
 
-// Some unused dependencies are commented out below instead of being removed.
-// This makes it easy to add them back in the future if needed.
 dependencies {
   implementation("androidx.appcompat:appcompat:1.7.0")
   implementation("com.google.android.material:material:1.12.0")
@@ -105,16 +97,16 @@ dependencies {
   implementation("androidx.cardview:cardview:1.0.0")
   implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
 
-  // Media3 ExoPlayer for HLS, DASH, MPEG-TS
+
   implementation("androidx.media3:media3-exoplayer:1.5.1")
   implementation("androidx.media3:media3-exoplayer-hls:1.5.1")
   implementation("androidx.media3:media3-exoplayer-dash:1.5.1")
   implementation("androidx.media3:media3-ui:1.5.1")
   implementation("androidx.media3:media3-session:1.5.1")
 
-  // Image loading for Java
   implementation("com.github.bumptech.glide:glide:4.16.0")
   implementation("com.airbnb.android:lottie:6.4.0")
+  implementation("com.facebook.shimmer:shimmer:0.5.0")
 
   implementation(platform(libs.androidx.compose.bom))
   implementation(platform(libs.firebase.bom))

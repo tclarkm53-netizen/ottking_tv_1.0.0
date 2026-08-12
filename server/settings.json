@@ -1,0 +1,14 @@
+{
+  "whatsapp_url": "https://wa.me/8801700000000",
+  "telegram_url": "https://t.me/telegram",
+  "app_share_url": "https://verify-app.alwaysdata.net/download",
+  "developer_info": "Official Stream IPTV Engine v2.0.0\nPowered by Secure Cloud Infrastructure & Real-Time AES-256 Content Delivery System.",
+  "version_code": 2,
+  "version_name": "2.0.0",
+  "min_version_code": 1,
+  "force_update": false,
+  "title": "🚀 New Version 2.0.0 Available!",
+  "message": "A new update for Live TV Player is available with improved video playback, better stability, and new features.",
+  "download_url": "https://verify-app.alwaysdata.net/new/mobile/app-release.apk",
+  "release_notes": "• Faster HD stream loading\n• Enhanced video player controls\n• Automatic category filtering\n• Performance and bug fixes"
+}

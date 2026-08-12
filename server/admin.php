@@ -36,11 +36,32 @@ $isLogged = !empty($_SESSION['admin_logged']);
 $channelsFile = __DIR__ . '/channels.json';
 $notificationsFile = __DIR__ . '/notifications.json';
 $usersFile = __DIR__ . '/users.json';
+$settingsFile = __DIR__ . '/settings.json';
 $maintenanceFile = __DIR__ . '/maintenance.flag';
 
 $channels = file_exists($channelsFile) ? (json_decode(file_get_contents($channelsFile), true) ?: []) : [];
 $notifications = file_exists($notificationsFile) ? (json_decode(file_get_contents($notificationsFile), true) ?: []) : [];
 $users = file_exists($usersFile) ? (json_decode(file_get_contents($usersFile), true) ?: []) : [];
+$settings = [
+    "whatsapp_url" => "https://wa.me/8801700000000",
+    "telegram_url" => "https://t.me/telegram",
+    "app_share_url" => "https://verify-app.alwaysdata.net/download",
+    "developer_info" => "Official Stream IPTV Engine v2.0.0\nPowered by Secure Cloud Infrastructure & Real-Time AES-256 Content Delivery System.",
+    "version_code" => 2,
+    "version_name" => "2.0.0",
+    "min_version_code" => 1,
+    "force_update" => false,
+    "title" => "🚀 New Version 2.0.0 Available!",
+    "message" => "A new update for Live TV Player is available with improved video playback, better stability, and new features.",
+    "download_url" => "https://verify-app.alwaysdata.net/new/mobile/app-release.apk",
+    "release_notes" => "• Faster HD stream loading\n• Enhanced video player controls\n• Automatic category filtering\n• Performance and bug fixes"
+];
+if (file_exists($settingsFile)) {
+    $savedSettings = json_decode(file_get_contents($settingsFile), true);
+    if (is_array($savedSettings)) {
+        $settings = array_merge($settings, $savedSettings);
+    }
+}
 $isMaintenance = file_exists($maintenanceFile);
 
 $successMsg = "";
@@ -142,7 +163,41 @@ if ($isLogged && $_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    // 6. Toggle Maintenance
+    // 5.5 Unbind Device Binding for User
+    if ($action === 'unbind_device') {
+        $uKey = trim($_POST['user_key'] ?? '');
+        if (!empty($uKey)) {
+            foreach ($users as $k => &$u) {
+                if ($k === $uKey || strcasecmp($k, $uKey) === 0 || (!empty($u['email']) && strcasecmp($u['email'], $uKey) === 0)) {
+                    $u['bound_device_id'] = "";
+                }
+            }
+            unset($u);
+            file_put_contents($usersFile, json_encode($users, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+            $successMsg = "Device binding reset for user '$uKey'. Account can now log in on a new device.";
+        }
+    }
+
+    // 6. Save App Settings & Support Links
+    if ($action === 'save_settings') {
+        $settings['whatsapp_url'] = trim($_POST['whatsapp_url'] ?? '');
+        $settings['telegram_url'] = trim($_POST['telegram_url'] ?? '');
+        $settings['app_share_url'] = trim($_POST['app_share_url'] ?? '');
+        $settings['developer_info'] = trim($_POST['developer_info'] ?? '');
+        $settings['version_code'] = (int)($_POST['version_code'] ?? 2);
+        $settings['version_name'] = trim($_POST['version_name'] ?? '2.0.0');
+        $settings['min_version_code'] = (int)($_POST['min_version_code'] ?? 1);
+        $settings['force_update'] = !empty($_POST['force_update']);
+        $settings['title'] = trim($_POST['title'] ?? '🚀 New Version Available!');
+        $settings['message'] = trim($_POST['message'] ?? '');
+        $settings['download_url'] = trim($_POST['download_url'] ?? '');
+        $settings['release_notes'] = trim($_POST['release_notes'] ?? '');
+
+        file_put_contents($settingsFile, json_encode($settings, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+        $successMsg = "App Settings, Support Links & App Update info updated successfully!";
+    }
+
+    // 7. Toggle Maintenance
     if ($action === 'toggle_maintenance') {
         if ($isMaintenance) {
             @unlink($maintenanceFile);
@@ -332,12 +387,15 @@ if ($isLogged && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     <th>Plan</th>
                     <th>Subscription Status</th>
                     <th>Expiry Date</th>
+                    <th>Bound Device ID</th>
+                    <th>Action</th>
                 </tr>
             </thead>
             <tbody>
                 <?php foreach ($users as $uid => $u): 
                     $exp = $u['expiry_timestamp'] ?? (strtotime($u['expiry_date'] ?? 'now') * 1000);
                     $isAct = (round(microtime(true) * 1000) < $exp);
+                    $boundDev = $u['bound_device_id'] ?? '';
                 ?>
                 <tr>
                     <td style="font-weight: bold;"><?= htmlspecialchars($uid) ?></td>
@@ -348,6 +406,20 @@ if ($isLogged && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         </span>
                     </td>
                     <td><?= htmlspecialchars($u['expiry_date'] ?? 'Expired') ?></td>
+                    <td style="font-family: monospace; font-size: 12px; color: <?= !empty($boundDev) ? '#38bdf8' : '#94a3b8' ?>;">
+                        <?= !empty($boundDev) ? htmlspecialchars($boundDev) : '<i>Unbound (Any Device)</i>' ?>
+                    </td>
+                    <td>
+                        <?php if (!empty($boundDev)): ?>
+                        <form method="POST" style="margin: 0; display: inline;">
+                            <input type="hidden" name="action" value="unbind_device">
+                            <input type="hidden" name="user_key" value="<?= htmlspecialchars($uid) ?>">
+                            <button type="submit" class="btn-warning" style="padding: 4px 8px; font-size: 11px; width: auto;">Unbind Device</button>
+                        </form>
+                        <?php else: ?>
+                        <span style="font-size: 11px; color: #64748b;">Ready for Login</span>
+                        <?php endif; ?>
+                    </td>
                 </tr>
                 <?php endforeach; ?>
             </tbody>
@@ -424,6 +496,58 @@ if ($isLogged && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 <?php endforeach; ?>
             </tbody>
         </table>
+    </div>
+
+    <!-- 4. APP LINKS & UPDATE CONFIGURATION -->
+    <div class="card">
+        <h2>🔗 App Support Links, Share URL & Software Updates</h2>
+        <form method="POST" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <input type="hidden" name="action" value="save_settings">
+            
+            <div>
+                <label style="font-size: 12px; color: #94a3b8;">WhatsApp Support URL</label>
+                <input type="text" name="whatsapp_url" value="<?= htmlspecialchars($settings['whatsapp_url'] ?? '') ?>" placeholder="https://wa.me/8801700000000" required>
+            </div>
+            <div>
+                <label style="font-size: 12px; color: #94a3b8;">Telegram Group/Channel URL</label>
+                <input type="text" name="telegram_url" value="<?= htmlspecialchars($settings['telegram_url'] ?? '') ?>" placeholder="https://t.me/telegram" required>
+            </div>
+            <div>
+                <label style="font-size: 12px; color: #94a3b8;">App Share URL (Promotional Download Link)</label>
+                <input type="text" name="app_share_url" value="<?= htmlspecialchars($settings['app_share_url'] ?? '') ?>" placeholder="https://verify-app.alwaysdata.net/download" required>
+            </div>
+            <div>
+                <label style="font-size: 12px; color: #94a3b8;">APK Download Direct Link</label>
+                <input type="text" name="download_url" value="<?= htmlspecialchars($settings['download_url'] ?? '') ?>" placeholder="https://verify-app.alwaysdata.net/new/mobile/app-release.apk" required>
+            </div>
+            <div>
+                <label style="font-size: 12px; color: #94a3b8;">App Version Name</label>
+                <input type="text" name="version_name" value="<?= htmlspecialchars($settings['version_name'] ?? '2.0.0') ?>" placeholder="2.0.0" required>
+            </div>
+            <div>
+                <label style="font-size: 12px; color: #94a3b8;">App Version Code (Integer)</label>
+                <input type="number" name="version_code" value="<?= (int)($settings['version_code'] ?? 2) ?>" placeholder="2" required>
+            </div>
+            <div>
+                <label style="font-size: 12px; color: #94a3b8;">Update Dialog Title</label>
+                <input type="text" name="title" value="<?= htmlspecialchars($settings['title'] ?? '') ?>" placeholder="🚀 New Version 2.0.0 Available!" required>
+            </div>
+            <div>
+                <label style="font-size: 12px; color: #94a3b8;">Developer / Engine Info Text</label>
+                <input type="text" name="developer_info" value="<?= htmlspecialchars($settings['developer_info'] ?? '') ?>" placeholder="Official Stream IPTV Engine v2.0.0">
+            </div>
+            <div style="grid-column: span 2;">
+                <label style="font-size: 12px; color: #94a3b8;">Update Message / Release Notes</label>
+                <textarea name="message" rows="3" placeholder="A new update for Live TV Player is available with improved video playback..."><?= htmlspecialchars($settings['message'] ?? '') ?></textarea>
+            </div>
+            <div style="grid-column: span 2; display: flex; align-items: center; justify-content: space-between;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" name="force_update" id="chk_force" value="1" <?= !empty($settings['force_update']) ? 'checked' : '' ?> style="width: auto; margin: 0;">
+                    <label for="chk_force" style="font-size: 13px; color: #ef4444; cursor: pointer; font-weight: bold;">Force Mandatory Update</label>
+                </div>
+                <button type="submit" style="width: auto; padding: 10px 24px;">Save Configuration</button>
+            </div>
+        </form>
     </div>
 
 <?php endif; ?>

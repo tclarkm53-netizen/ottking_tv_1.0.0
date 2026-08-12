@@ -65,10 +65,12 @@ public class PreferenceUtils {
     private static final String KEY_WHATSAPP_URL = "whatsapp_url";
     private static final String KEY_TELEGRAM_URL = "telegram_url";
     private static final String KEY_DEVELOPER_INFO = "developer_info";
+    private static final String KEY_APP_SHARE_URL = "app_share_url";
 
     public static final String DEFAULT_WHATSAPP_URL = "https://wa.me/8801700000000";
     public static final String DEFAULT_TELEGRAM_URL = "https://t.me/telegram";
-    public static final String DEFAULT_DEVELOPER_INFO = "Official Stream IPTV Engine v2.4.0\nPowered by Secure Cloud Infrastructure & Real-Time AES-256 Content Delivery System.";
+    public static final String DEFAULT_APP_SHARE_URL = "https://verify-app.alwaysdata.net/download";
+    public static final String DEFAULT_DEVELOPER_INFO = "Official Stream IPTV Engine v" + com.ottking.mobile.devcode.BuildConfig.VERSION_NAME + "\nPowered by Secure Cloud Infrastructure & Real-Time AES-256 Content Delivery System.";
 
     public static String getWhatsAppUrl(Context context) {
         return getPrefs(context).getString(KEY_WHATSAPP_URL, DEFAULT_WHATSAPP_URL);
@@ -76,6 +78,16 @@ public class PreferenceUtils {
 
     public static String getTelegramUrl(Context context) {
         return getPrefs(context).getString(KEY_TELEGRAM_URL, DEFAULT_TELEGRAM_URL);
+    }
+
+    public static String getAppShareUrl(Context context) {
+        return getPrefs(context).getString(KEY_APP_SHARE_URL, DEFAULT_APP_SHARE_URL);
+    }
+
+    public static void setAppShareUrl(Context context, String shareUrl) {
+        if (shareUrl != null && !shareUrl.trim().isEmpty()) {
+            getPrefs(context).edit().putString(KEY_APP_SHARE_URL, shareUrl.trim()).apply();
+        }
     }
 
     public static String getDeveloperInfo(Context context) {
@@ -311,28 +323,98 @@ public class PreferenceUtils {
     private static final String KEY_LAST_PLAYED_TYPE = "last_played_type";
     private static final String KEY_LAST_PLAYED_LOGO = "last_played_logo";
     private static final String KEY_LAST_PLAYED_POSITION = "last_played_position";
+    private static final String KEY_LAST_PLAYED_DURATION = "last_played_duration";
     private static final String KEY_LAST_PLAYED_TIMESTAMP = "last_played_timestamp";
+
+    // Separate keys for Live TV last played
+    private static final String KEY_TV_LAST_ID = "tv_last_id";
+    private static final String KEY_TV_LAST_URL = "tv_last_url";
+    private static final String KEY_TV_LAST_TITLE = "tv_last_title";
+    private static final String KEY_TV_LAST_CATEGORY = "tv_last_category";
+    private static final String KEY_TV_LAST_TYPE = "tv_last_type";
+    private static final String KEY_TV_LAST_LOGO = "tv_last_logo";
+    private static final String KEY_TV_LAST_TIMESTAMP = "tv_last_timestamp";
+
+    // Separate keys for Movie / VOD last played
+    private static final String KEY_MOVIE_LAST_ID = "movie_last_id";
+    private static final String KEY_MOVIE_LAST_URL = "movie_last_url";
+    private static final String KEY_MOVIE_LAST_TITLE = "movie_last_title";
+    private static final String KEY_MOVIE_LAST_CATEGORY = "movie_last_category";
+    private static final String KEY_MOVIE_LAST_TYPE = "movie_last_type";
+    private static final String KEY_MOVIE_LAST_LOGO = "movie_last_logo";
+    private static final String KEY_MOVIE_LAST_POSITION = "movie_last_position";
+    private static final String KEY_MOVIE_LAST_DURATION = "movie_last_duration";
+    private static final String KEY_MOVIE_LAST_TIMESTAMP = "movie_last_timestamp";
+
     private static final String KEY_AUTO_PLAY_ON_SCREEN_ON = "auto_play_on_screen_on";
     private static final String KEY_AUTO_PLAY_ON_STARTUP = "auto_play_on_startup";
+    private static final String PREFIX_STREAM_POS = "stream_pos_";
+    private static final String PREFIX_STREAM_DUR = "stream_dur_";
+
+    public static boolean isMovieStream(String category, String type, String title) {
+        if (type != null && ("movie".equalsIgnoreCase(type) || "series".equalsIgnoreCase(type) || "vod".equalsIgnoreCase(type))) {
+            return true;
+        }
+        if (category != null) {
+            String lower = category.toLowerCase();
+            if (lower.contains("movie") || lower.contains("cinema") || lower.contains("film") ||
+                    lower.contains("series") || lower.contains("vod") || lower.contains("drama") ||
+                    lower.contains("hollywood") || lower.contains("bollywood") || lower.contains("tamil") ||
+                    lower.contains("bangla movie") || lower.contains("hindi movie") || lower.contains("animation")) {
+                return true;
+            }
+        }
+        if (title != null) {
+            String lowerTitle = title.toLowerCase();
+            if (lowerTitle.contains("[movie]") || lowerTitle.contains("(movie)") || lowerTitle.contains("season") ||
+                    lowerTitle.contains("episode") || lowerTitle.contains("s01") || lowerTitle.contains("e01")) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     public static void saveLastPlayedStream(Context context, int id, String url, String title, String type, String category, String logoUrl, long position) {
-        if (context == null || url == null || url.trim().isEmpty()) return;
+        saveLastPlayedStream(context, id, url, title, type, category, logoUrl, position, 0L);
+    }
+
+    public static void saveLastPlayedStream(Context context, int id, String url, String title, String type, String category, String logoUrl, long position, long duration) {
+        // Last watching system disabled
+    }
+
+    public static void clearLastPlayedStream(Context context) {
+        if (context == null) return;
         getPrefs(context).edit()
-                .putInt(KEY_LAST_PLAYED_ID, id)
-                .putString(KEY_LAST_PLAYED_URL, url.trim())
-                .putString(KEY_LAST_PLAYED_TITLE, title != null ? title.trim() : "Live TV Channel")
-                .putString(KEY_LAST_PLAYED_TYPE, type != null ? type.trim() : "hls")
-                .putString(KEY_LAST_PLAYED_CATEGORY, category != null ? category.trim() : "tv")
-                .putString(KEY_LAST_PLAYED_LOGO, logoUrl != null ? logoUrl.trim() : "")
-                .putLong(KEY_LAST_PLAYED_POSITION, Math.max(0, position))
-                .putLong(KEY_LAST_PLAYED_TIMESTAMP, System.currentTimeMillis())
+                .remove(KEY_LAST_PLAYED_ID)
+                .remove(KEY_LAST_PLAYED_URL)
+                .remove(KEY_LAST_PLAYED_TITLE)
+                .remove(KEY_LAST_PLAYED_CATEGORY)
+                .remove(KEY_LAST_PLAYED_TYPE)
+                .remove(KEY_LAST_PLAYED_LOGO)
+                .remove(KEY_LAST_PLAYED_POSITION)
+                .remove(KEY_LAST_PLAYED_DURATION)
+                .remove(KEY_LAST_PLAYED_TIMESTAMP)
+                .remove(KEY_TV_LAST_ID)
+                .remove(KEY_TV_LAST_URL)
+                .remove(KEY_TV_LAST_TITLE)
+                .remove(KEY_TV_LAST_CATEGORY)
+                .remove(KEY_TV_LAST_TYPE)
+                .remove(KEY_TV_LAST_LOGO)
+                .remove(KEY_TV_LAST_TIMESTAMP)
+                .remove(KEY_MOVIE_LAST_ID)
+                .remove(KEY_MOVIE_LAST_URL)
+                .remove(KEY_MOVIE_LAST_TITLE)
+                .remove(KEY_MOVIE_LAST_CATEGORY)
+                .remove(KEY_MOVIE_LAST_TYPE)
+                .remove(KEY_MOVIE_LAST_LOGO)
+                .remove(KEY_MOVIE_LAST_POSITION)
+                .remove(KEY_MOVIE_LAST_DURATION)
+                .remove(KEY_MOVIE_LAST_TIMESTAMP)
                 .apply();
     }
 
     public static boolean hasLastPlayedStream(Context context) {
-        if (context == null) return false;
-        String url = getPrefs(context).getString(KEY_LAST_PLAYED_URL, "");
-        return !url.trim().isEmpty();
+        return false;
     }
 
     public static String getLastPlayedStreamUrl(Context context) {
@@ -361,6 +443,132 @@ public class PreferenceUtils {
 
     public static long getLastPlayedPosition(Context context) {
         return getPrefs(context).getLong(KEY_LAST_PLAYED_POSITION, 0L);
+    }
+
+    public static long getLastPlayedDuration(Context context) {
+        return getPrefs(context).getLong(KEY_LAST_PLAYED_DURATION, 0L);
+    }
+
+    // --- Live TV Specific Last Watched ---
+    public static boolean hasLastPlayedTv(Context context) {
+        return false;
+    }
+
+    public static String getLastPlayedTvUrl(Context context) {
+        return getPrefs(context).getString(KEY_TV_LAST_URL, "");
+    }
+
+    public static String getLastPlayedTvTitle(Context context) {
+        return getPrefs(context).getString(KEY_TV_LAST_TITLE, "Live Channel");
+    }
+
+    public static String getLastPlayedTvCategory(Context context) {
+        return getPrefs(context).getString(KEY_TV_LAST_CATEGORY, "Live TV");
+    }
+
+    public static String getLastPlayedTvType(Context context) {
+        return getPrefs(context).getString(KEY_TV_LAST_TYPE, "hls");
+    }
+
+    public static String getLastPlayedTvLogo(Context context) {
+        return getPrefs(context).getString(KEY_TV_LAST_LOGO, "");
+    }
+
+    public static int getLastPlayedTvId(Context context) {
+        return getPrefs(context).getInt(KEY_TV_LAST_ID, 0);
+    }
+
+    // --- Movie / VOD Specific Last Watched ---
+    public static boolean hasLastPlayedMovie(Context context) {
+        return false;
+    }
+
+    public static String getLastPlayedMovieUrl(Context context) {
+        return getPrefs(context).getString(KEY_MOVIE_LAST_URL, "");
+    }
+
+    public static String getLastPlayedMovieTitle(Context context) {
+        return getPrefs(context).getString(KEY_MOVIE_LAST_TITLE, "Movie");
+    }
+
+    public static String getLastPlayedMovieCategory(Context context) {
+        return getPrefs(context).getString(KEY_MOVIE_LAST_CATEGORY, "Movies");
+    }
+
+    public static String getLastPlayedMovieType(Context context) {
+        return getPrefs(context).getString(KEY_MOVIE_LAST_TYPE, "movie");
+    }
+
+    public static String getLastPlayedMovieLogo(Context context) {
+        return getPrefs(context).getString(KEY_MOVIE_LAST_LOGO, "");
+    }
+
+    public static int getLastPlayedMovieId(Context context) {
+        return getPrefs(context).getInt(KEY_MOVIE_LAST_ID, 0);
+    }
+
+    public static long getLastPlayedMoviePosition(Context context) {
+        return getPrefs(context).getLong(KEY_MOVIE_LAST_POSITION, 0L);
+    }
+
+    public static long getLastPlayedMovieDuration(Context context) {
+        return getPrefs(context).getLong(KEY_MOVIE_LAST_DURATION, 0L);
+    }
+
+    // --- Per-Stream Playback Position Session Tracking ---
+    private static String getStreamKey(String url) {
+        if (url == null) return "unknown";
+        return String.valueOf(Math.abs(url.trim().hashCode()));
+    }
+
+    public static void saveStreamPlaybackPosition(Context context, String streamUrl, long positionMs, long durationMs) {
+        if (context == null || streamUrl == null || streamUrl.trim().isEmpty()) return;
+        String key = getStreamKey(streamUrl);
+        // If near end (>96% finished or < 15 seconds remaining), reset position to start over
+        if (durationMs > 30000 && positionMs >= (durationMs - 15000)) {
+            clearStreamPlaybackPosition(context, streamUrl);
+            return;
+        }
+        if (positionMs > 2000) {
+            getPrefs(context).edit()
+                    .putLong(PREFIX_STREAM_POS + key, positionMs)
+                    .putLong(PREFIX_STREAM_DUR + key, Math.max(0, durationMs))
+                    .apply();
+        }
+    }
+
+    public static long getStreamPlaybackPosition(Context context, String streamUrl) {
+        if (context == null || streamUrl == null || streamUrl.trim().isEmpty()) return 0L;
+        String key = getStreamKey(streamUrl);
+        return getPrefs(context).getLong(PREFIX_STREAM_POS + key, 0L);
+    }
+
+    public static long getStreamDuration(Context context, String streamUrl) {
+        if (context == null || streamUrl == null || streamUrl.trim().isEmpty()) return 0L;
+        String key = getStreamKey(streamUrl);
+        return getPrefs(context).getLong(PREFIX_STREAM_DUR + key, 0L);
+    }
+
+    public static void clearStreamPlaybackPosition(Context context, String streamUrl) {
+        if (context == null || streamUrl == null || streamUrl.trim().isEmpty()) return;
+        String key = getStreamKey(streamUrl);
+        getPrefs(context).edit()
+                .remove(PREFIX_STREAM_POS + key)
+                .remove(PREFIX_STREAM_DUR + key)
+                .apply();
+    }
+
+    public static String formatDuration(long ms) {
+        if (ms <= 0) return "00:00";
+        long totalSeconds = ms / 1000;
+        long seconds = totalSeconds % 60;
+        long minutes = (totalSeconds / 60) % 60;
+        long hours = totalSeconds / 3600;
+        if (hours > 0) {
+            return String.format(java.util.Locale.getDefault(), "%d:%02d:%02d", hours, minutes, seconds);
+        } else {
+            return String.format(java.util.Locale.getDefault(), "%02d:%02d", minutes, seconds);
+        }
     }
 
     public static boolean isAutoPlayOnScreenOn(Context context) {

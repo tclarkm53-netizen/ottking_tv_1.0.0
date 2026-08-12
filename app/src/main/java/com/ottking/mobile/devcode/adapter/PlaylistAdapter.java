@@ -61,11 +61,20 @@ public class PlaylistAdapter extends RecyclerView.Adapter<PlaylistAdapter.Playli
         }
 
         if (holder.imgCover != null) {
-            Glide.with(context)
-                    .load(playlist.getIconUrl())
-                    .placeholder(R.drawable.ic_playlist)
-                    .error(R.drawable.ic_playlist)
-                    .into(holder.imgCover);
+            String iconUrl = playlist.getIconUrl();
+            if (iconUrl != null && !iconUrl.trim().isEmpty()) {
+                Glide.with(context)
+                        .load(iconUrl.trim())
+                        .diskCacheStrategy(com.bumptech.glide.load.engine.DiskCacheStrategy.ALL)
+                        .skipMemoryCache(false)
+                        .placeholder(R.drawable.img_app_logo)
+                        .error(R.drawable.img_app_logo)
+                        .into(holder.imgCover);
+            } else {
+                Glide.with(context)
+                        .load(R.drawable.img_app_logo)
+                        .into(holder.imgCover);
+            }
         }
 
         holder.itemView.setOnClickListener(v -> {

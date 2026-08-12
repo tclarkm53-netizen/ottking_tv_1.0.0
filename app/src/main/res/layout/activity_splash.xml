@@ -24,7 +24,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="20dp"
-            android:text="LIVE TV PLAYER"
+            android:text="@string/app_name"
             android:textColor="@color/text_primary"
             android:textSize="26sp"
             android:textStyle="bold" />
@@ -33,7 +33,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="6dp"
-            android:text="Premium IPTV Streaming Engine"
+            android:text="@string/tag_line_1"
             android:textColor="@color/primary"
             android:textSize="14sp" />
     </LinearLayout>
@@ -60,7 +60,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="v1.0 • Powered by ExoPlayer Engine"
+            android:text="@string/tag_line_2"
             android:textColor="@color/text_secondary"
             android:textSize="12sp" />
     </LinearLayout>

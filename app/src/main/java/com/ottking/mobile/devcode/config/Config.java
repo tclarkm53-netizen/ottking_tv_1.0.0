@@ -7,13 +7,13 @@ package com.ottking.mobile.devcode.config;
 public class Config {
 
     // Primary API URL & Base Endpoint
-    public static final String BASE_URL = "https://verify-app.alwaysdata.net/new/mobile/v1/";
-    public static final String API_URL = "https://verify-app.alwaysdata.net/new/mobile/v1/";
+    public static final String BASE_URL = BuildConfig.BASE_URL;
+    public static final String API_URL = BASE_URL;
 
     // Security & Authentication Credentials
-    public static final String API_KEY = "iptv_sec_api_key_2026";
-    public static final String HMAC_KEY = "iptv_hmac_secret_key_889900";
-    public static final String ENCRYPTION_KEY = "12345678901234567890123456789012";
+    public static final String API_KEY = BuildConfig.API_KEY;
+    public static final String HMAC_KEY = BuildConfig.HMAC_KEY;
+    public static final String ENCRYPTION_KEY = BuildConfig.ENCRYPTION_KEY;
 
     // Header Keys
     public static final String HEADER_API_KEY = "X-API-Key";

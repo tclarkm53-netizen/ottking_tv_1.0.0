@@ -1,3 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Live TV Player</string>
+    <!-- App Identity -->
+    <string name="app_name">OTT KING</string>
+    <string name="app_description">High-performance live TV and IPTV streaming player</string>
+
+    <!-- Navigation & Bottom Tabs -->
+    <string name="tab_live_tv">Live TV</string>
+    <string name="tab_category">Categories</string>
+    <string name="tab_movies">Movies</string>
+    <string name="tab_playlists">Playlists</string>
+    <string name="tab_notifications">Notifications</string>
+
+    <!-- Sections & Headers -->
+    <string name="section_live_tv">Live TV Channels</string>
+    <string name="section_movies">Blockbuster Movies</string>
+    <string name="section_featured_movies">Featured 4K Movies &amp; Cinema</string>
+    <string name="section_featured_channels">Featured Live TV Channels</string>
+    <string name="section_playlists">Curated TV &amp; Movie Playlists</string>
+    <string name="section_notifications">System Notifications &amp; Alerts</string>
+    <string name="section_favorites">Favorite Channels &amp; Movies</string>
+    <string name="section_search_results">Search Results</string>
+    <string name="search_hint">Search channels, movies, sports, news…</string>
+
+    <!-- Resume / Continue Watching -->
+    <string name="resume_live_tv_badge">RESUME LIVE TV</string>
+    <string name="resume_movie_badge">RESUME MOVIE</string>
+    <string name="resume_watching">Continue Watching</string>
+    <string name="resume_tap_to_play">Tap to resume playback</string>
+    <string name="resume_playback_from">Resume from %s</string>
+    <string name="resume_playback_time">Watched: %1$s / %2$s</string>
+
+    <!-- Double Tap & Player Gestures -->
+    <string name="player_rewind_10s">-10s</string>
+    <string name="player_forward_10s">+10s</string>
+    <string name="player_rewind_label">Rewind</string>
+    <string name="player_forward_label">Forward</string>
+    <string name="player_double_tap_hint">Double tap left / right to seek 10s</string>
+    <string name="player_live_indicator">🔴 LIVE STREAM</string>
+    <string name="player_live_label">LIVE</string>
+    <string name="player_resumed_notice">Resumed from %s</string>
+
+    <!-- Aspect Ratio & Quality -->
+    <string name="aspect_ratio_zoom">Aspect Ratio: Zoom / Crop (16:9)</string>
+    <string name="aspect_ratio_fill">Aspect Ratio: Fill Screen</string>
+    <string name="aspect_ratio_fit">Aspect Ratio: Fit</string>
+    <string name="quality_auto">Auto (Adaptive)</string>
+    <string name="quality_set">Quality set to: %s</string>
+    <string name="quality_failed">Failed to change video quality</string>
+
+    <!-- Favorites & Actions -->
+    <string name="favorite_added">Saved to Favorites</string>
+    <string name="favorite_removed">Removed from Favorites</string>
+    <string name="share_stream_title">Share Stream Link</string>
+    <string name="share_stream_failed">Unable to share stream</string>
+    <string name="error_stream_failed">Stream connection failed. Tap Play to reconnect.</string>
+    <string name="error_player_init">Failed to initialize video player</string>
+    <string name="error_player_not_ready">Player is not initialized</string>
+    <string name="vip_subscription_required">🔒 VIP Subscription Required: Please login with an active VIP account.</string>
+    <string name="vip_subscription_required_channel">🔒 VIP Subscription Required: Please login with an active VIP account to watch this channel.</string>
+    <string name="vip_subscription_required_movie">🔒 VIP Subscription Required: Please login with an active VIP account to watch this movie/series.</string>
+
+    <!-- Floating Player (PiP) -->
+    <string name="pip_disabled">Floating Player is disabled in Settings.</string>
+    <string name="pip_permission_required">Enable \'Display over other apps\' permission for floating player</string>
+    <string name="pip_error">Could not start floating player: %s</string>
+
+    <!-- Dialogs -->
+    <string name="exit_app_title">Exit App</string>
+    <string name="exit_app_message">Are you sure you want to exit the application?</string>
+    <string name="exit_positive">Yes, Exit</string>
+    <string name="cancel">Cancel</string>
+    <string name="save">Save</string>
+    <string name="apply">Apply</string>
+    <string name="close">Close</string>
+
+    <!-- Playlists -->
+    <string name="playlist_deleted">Playlist deleted</string>
+    <string name="playlist_loaded_success">Loaded %d channels into playlist!</string>
+    <string name="playlist_m3u_error">M3U Error: %s</string>
+    <string name="playlist_empty">No playlists available. Tap + to add an M3U playlist.</string>
+
+    <!-- Support -->
+    <string name="support_enter_title">Please enter stream title</string>
+    <string name="support_report_success">Report submitted successfully! Thank you.</string>
+    <string name="support_link_unavailable">Support link not available</string>
+    <string name="support_link_error">Could not open link: %s</string>
+
+<string name="tag_line_1">Premium IPTV Streaming</string>
+<string name="tag_line_2">v1.0 • Powered by OTT KING</string>
+
 </resources>

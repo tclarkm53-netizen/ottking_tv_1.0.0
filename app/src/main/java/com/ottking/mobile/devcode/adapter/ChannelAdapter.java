@@ -8,11 +8,15 @@ import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.TextView;
 
+import android.os.Build;
+import android.widget.Toast;
+
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.engine.DiskCacheStrategy;
+import com.ottking.mobile.devcode.FloatingPlayerService;
 import com.ottking.mobile.devcode.LandscapeActivity;
 import com.ottking.mobile.devcode.PlayerActivity;
 import com.ottking.mobile.devcode.R;
@@ -144,7 +148,7 @@ public class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.ChannelV
                             .load(logoUrl)
                             .diskCacheStrategy(DiskCacheStrategy.ALL)
                             .skipMemoryCache(false)
-                            .placeholder(R.drawable.img_hero_banner)
+                            .placeholder(R.drawable.img_app_logo)
                             .error(R.drawable.img_app_logo)
                             .centerCrop()
                             .into(holder.imgLogo);
@@ -176,6 +180,30 @@ public class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.ChannelV
 
         final boolean finalIsMovie = isMovie;
         holder.itemView.setOnClickListener(v -> {
+            if (FloatingPlayerService.isRunning()) {
+                Intent serviceIntent = new Intent(context, FloatingPlayerService.class);
+                serviceIntent.setAction(FloatingPlayerService.ACTION_START_FLOATING);
+                serviceIntent.putExtra(FloatingPlayerService.EXTRA_CHANNEL_ID, String.valueOf(channel.getId()));
+                serviceIntent.putExtra(FloatingPlayerService.EXTRA_STREAM_URL, channel.getStreamUrl());
+                serviceIntent.putExtra(FloatingPlayerService.EXTRA_STREAM_TITLE, channel.getTitle());
+                serviceIntent.putExtra(FloatingPlayerService.EXTRA_STREAM_CATEGORY, channel.getCategory());
+                serviceIntent.putExtra(FloatingPlayerService.EXTRA_STREAM_TYPE, channel.getStreamType());
+                serviceIntent.putExtra(FloatingPlayerService.EXTRA_LOGO_URL, channel.getLogoUrl());
+                serviceIntent.putExtra(FloatingPlayerService.EXTRA_SEEK_POSITION, 0L);
+
+                try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        context.startForegroundService(serviceIntent);
+                    } else {
+                        context.startService(serviceIntent);
+                    }
+                    Toast.makeText(context, "Playing on Floating Player: " + channel.getTitle(), Toast.LENGTH_SHORT).show();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                return;
+            }
+
             if (finalIsMovie) {
                 Intent intent = new Intent(context, LandscapeActivity.class);
                 intent.putExtra("channel_id", channel.getId());

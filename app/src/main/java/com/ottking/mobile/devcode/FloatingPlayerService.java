@@ -73,14 +73,22 @@ public class FloatingPlayerService extends Service {
     private static final String CHANNEL_ID = "floating_player_channel";
     private static final int NOTIF_ID = 1001;
 
+    private static volatile boolean isServiceRunning = false;
+
+    public static boolean isRunning() {
+        return isServiceRunning;
+    }
+
     @Override
     public void onCreate() {
         super.onCreate();
+        isServiceRunning = true;
         createNotificationChannel();
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        isServiceRunning = true;
         if (intent != null && ACTION_STOP_FLOATING.equals(intent.getAction())) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 stopForeground(STOP_FOREGROUND_REMOVE);
@@ -128,6 +136,12 @@ public class FloatingPlayerService extends Service {
         } else {
             if (txtTitle != null) {
                 txtTitle.setText(streamTitle != null ? streamTitle : "Live Stream");
+            }
+            NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (manager != null) {
+                try {
+                    manager.notify(NOTIF_ID, createNotification());
+                } catch (Exception ignored) {}
             }
             playStream();
         }
@@ -516,6 +530,10 @@ public class FloatingPlayerService extends Service {
                     }
                 });
             } else {
+                try {
+                    player.stop();
+                    player.clearMediaItems();
+                } catch (Exception ignored) {}
                 if (playerView != null) {
                     playerView.setPlayer(player);
                 }
@@ -604,6 +622,7 @@ public class FloatingPlayerService extends Service {
 
     @Override
     public void onDestroy() {
+        isServiceRunning = false;
         super.onDestroy();
         if (mediaSession != null) {
             try {

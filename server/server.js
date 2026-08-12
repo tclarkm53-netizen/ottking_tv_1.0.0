@@ -25,15 +25,50 @@ try {
   console.error('[SERVER] Failed to load channels.json:', err.message);
 }
 
-// AES-256-CBC Encryption Helper
+// Load settings
+const settingsPath = path.join(__dirname, 'settings.json');
+let appSettings = {
+  whatsapp_url: "https://wa.me/8801700000000",
+  telegram_url: "https://t.me/telegram",
+  app_share_url: "https://verify-app.alwaysdata.net/download",
+  developer_info: "Official Stream IPTV Engine v2.0.0\nPowered by Secure Cloud Infrastructure & Real-Time AES-256 Content Delivery System.",
+  version_code: 2,
+  version_name: "2.0.0",
+  min_version_code: 1,
+  force_update: false,
+  title: "🚀 New Version 2.0.0 Available!",
+  message: "A new update for Live TV Player is available with improved video playback, better stability, and new features.",
+  download_url: "https://verify-app.alwaysdata.net/new/mobile/app-release.apk",
+  release_notes: "• Faster HD stream loading\n• Enhanced video player controls\n• Automatic category filtering\n• Performance and bug fixes"
+};
+
+try {
+  if (fs.existsSync(settingsPath)) {
+    const saved = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+    appSettings = { ...appSettings, ...saved };
+  }
+} catch (err) {
+  console.error('[SERVER] Failed to load settings.json:', err.message);
+}
+
+// AES-256-GCM Encryption Helper matching Crypto_lib
 function encryptData(text, secretKey) {
-  const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(secretKey, 'utf8'), iv);
-  let encrypted = cipher.update(text, 'utf8', 'hex');
-  encrypted += cipher.final('hex');
+  const iv = crypto.randomBytes(12);
+  const keyBytes = Buffer.alloc(32);
+  Buffer.from(secretKey, 'utf8').copy(keyBytes, 0, 0, Math.min(32, secretKey.length));
+
+  const cipher = crypto.createCipheriv('aes-256-gcm', keyBytes, iv);
+  let encrypted = cipher.update(text, 'utf8');
+  encrypted = Buffer.concat([encrypted, cipher.final()]);
+  const tag = cipher.getAuthTag();
+  const combined = Buffer.concat([encrypted, tag]);
+
+  const payload = iv.toString('base64') + '.' + combined.toString('base64');
+  const hmac = crypto.createHmac('sha256', HMAC_KEY).update(text).digest('hex');
+
   return {
-    iv: iv.toString('hex'),
-    encryptedData: encrypted
+    encryptedPayload: payload,
+    signature: hmac
   };
 }
 
@@ -88,9 +123,24 @@ app.get('/api/channels', verifySecurity, (req, res) => {
     res.json({
       status: 'success',
       timestamp: Date.now(),
+      whatsapp_url: appSettings.whatsapp_url,
+      telegram_url: appSettings.telegram_url,
+      app_share_url: appSettings.app_share_url,
+      developer_info: appSettings.developer_info,
       count: channelsData.length,
-      iv: encryptedPayload.iv,
-      data: encryptedPayload.encryptedData
+      encrypted_payload: encryptedPayload.encryptedPayload,
+      signature: encryptedPayload.signature,
+      data: encryptedPayload.encryptedPayload,
+      app_update: {
+        version_code: appSettings.version_code,
+        version_name: appSettings.version_name,
+        min_version_code: appSettings.min_version_code,
+        force_update: appSettings.force_update,
+        title: appSettings.title,
+        message: appSettings.message,
+        download_url: appSettings.download_url,
+        release_notes: appSettings.release_notes
+      }
     });
   } catch (error) {
     console.error('[SERVER ERROR]', error);
