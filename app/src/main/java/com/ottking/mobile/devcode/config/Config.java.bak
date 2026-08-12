@@ -4,9 +4,6 @@ package com.ottking.mobile.devcode.config;
  * Global App Configuration Manager
  * Centralized store for API URLs, security credentials, route definitions, and app settings.
  */
- 
- import com.ottking.mobile.devcode.BuildConfig;
- 
 public class Config {
 
     // Primary API URL & Base Endpoint
