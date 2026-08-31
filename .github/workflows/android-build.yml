@@ -1,0 +1,221 @@
+name: Android Build Environment
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'বিল্ড টাইপ সিলেক্ট করুন (debug/release/universal-release/split-release/bundle)'
+        required: true
+        default: 'debug'
+        type: choice
+        options:
+        - debug
+        - release
+        - universal-release
+        - split-release
+        - bundle
+      publish_target:
+        description: 'বিল্ড আউটপুট কোথায় পাঠাবে সিলেক্ট করুন'
+        required: true
+        default: 'artifact'
+        type: choice
+        options:
+        - artifact
+        - release
+        - both
+      release_tag:
+        description: 'রিলিজ ট্যাগ (ফাঁকা রাখলে অটো তৈরি হবে, যেমন v1.0.0)'
+        required: false
+        default: ''
+      draft_release:
+        description: 'রিলিজটা Draft হিসেবে তৈরি হবে কিনা'
+        required: true
+        default: 'false'
+        type: choice
+        options:
+        - 'true'
+        - 'false'
+      prerelease:
+        description: 'রিলিজটা Pre-release হিসেবে মার্ক হবে কিনা'
+        required: true
+        default: 'false'
+        type: choice
+        options:
+        - 'true'
+        - 'false'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Prepare Build Environment
+        run: |
+          # অ্যান্ড্রয়েড এসডিকে পাথ দিয়ে local.properties ফাইল তৈরি (বিল্ড ফেইলিওর রোধ করতে)
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+
+          # গ্রেডল র‍্যাপার আপডেট করে 9.3.1 করা হলো
+          gradle wrapper --gradle-version 9.3.1
+          chmod +x gradlew
+
+          # ডামি ডিবাগ কি-স্টোর তৈরি (debug বিল্ডের জন্য)
+          keytool -genkey -v -keystore debug.keystore -alias androiddebugkey \
+            -storepass android -keypass android -keyalg RSA -keysize 2048 \
+            -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+
+      - name: Inject google-services.json from GitHub Secrets
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          set -euo pipefail
+          mkdir -p app
+          if [ -n "${GOOGLE_SERVICES_JSON:-}" ]; then
+            echo "Injecting google-services.json from GitHub Secrets..."
+            if echo "$GOOGLE_SERVICES_JSON" | base64 -d > /dev/null 2>&1 && [[ "$GOOGLE_SERVICES_JSON" != *"{"* ]]; then
+              echo "$GOOGLE_SERVICES_JSON" | base64 -d > app/google-services.json
+            else
+              echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
+            fi
+            echo "✅ google-services.json successfully created in app/ directory."
+
+            echo "--- Generated google-services.json preview ---"
+            head -n 10 app/google-services.json
+            echo "--------------------------------------------"
+          else
+            echo "⚠️ GOOGLE_SERVICES_JSON secret পাওয়া যায়নি। google-services.json ছাড়াই বিল্ড এগিয়ে নেওয়া হচ্ছে।"
+          fi
+
+      - name: Prepare Release Signing
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          if [ -n "${RELEASE_KEYSTORE_BASE64:-}" ]; then
+            echo "Using real release keystore from repository secrets."
+            echo "$RELEASE_KEYSTORE_BASE64" | base64 -d > release.keystore
+
+            if [ ! -s release.keystore ]; then
+              echo "::error::release.keystore ফাইল খালি বা তৈরি হয়নি - RELEASE_KEYSTORE_BASE64 সিক্রেট চেক করুন।"
+              exit 1
+            fi
+
+            {
+              echo "KEYSTORE_PATH=$(pwd)/release.keystore"
+              echo "STORE_PASSWORD=$RELEASE_KEYSTORE_PASSWORD"
+              echo "KEY_ALIAS=${RELEASE_KEY_ALIAS:-upload}"
+              echo "KEY_PASSWORD=${RELEASE_KEY_PASSWORD:-$RELEASE_KEYSTORE_PASSWORD}"
+            } >> "$GITHUB_ENV"
+
+            KEY_ALIAS_CHECK="${RELEASE_KEY_ALIAS:-upload}"
+            KEY_PASSWORD_CHECK="${RELEASE_KEY_PASSWORD:-$RELEASE_KEYSTORE_PASSWORD}"
+
+            if ! keytool -list -v \
+                  -keystore release.keystore \
+                  -alias "$KEY_ALIAS_CHECK" \
+                  -storepass "$RELEASE_KEYSTORE_PASSWORD" \
+                  -keypass "$KEY_PASSWORD_CHECK" > /dev/null 2>&1; then
+              echo "::error::keytool দিয়ে keystore/key ভেরিফাই করতে ব্যর্থ - STORE_PASSWORD, KEY_ALIAS বা KEY_PASSWORD ভুল হতে পারে।"
+              exit 1
+            fi
+            echo "✅ Keystore ও key password ভেরিফাই সফল।"
+          else
+            echo "::warning::RELEASE_KEYSTORE_BASE64 secret পাওয়া যায়নি - release/bundle বিল্ড ডিবাগ কি-স্টোর দিয়ে সাইন করা হচ্ছে।"
+            {
+              echo "KEYSTORE_PATH=$(pwd)/debug.keystore"
+              echo "STORE_PASSWORD=android"
+              echo "KEY_ALIAS=androiddebugkey"
+              echo "KEY_PASSWORD=android"
+            } >> "$GITHUB_ENV"
+          fi
+
+      - name: Run Build
+        run: |
+          BUILD_TYPE="${{ github.event.inputs.build_type }}"
+          if [ -z "$BUILD_TYPE" ]; then
+            BUILD_TYPE="debug"
+          fi
+          echo "Building: $BUILD_TYPE"
+
+          case "$BUILD_TYPE" in
+            debug)
+              ./gradlew :app:assembleDebug
+              ;;
+            release | universal-release | split-release)
+              ./gradlew :app:assembleRelease
+              ;;
+            bundle)
+              ./gradlew :app:bundleRelease
+              ;;
+            *)
+              echo "Unsupported build type: $BUILD_TYPE"
+              exit 1
+              ;;
+          esac
+
+      - name: Collect Build Outputs
+        id: collect
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+
+          # APK এবং AAB ফাইলগুলো খুঁজে একটি ফোল্ডারে কপি করা হচ্ছে যাতে
+          # আর্টিফ্যাক্ট আপলোড এবং রিলিজ আপলোড দুটোতেই একই সোর্স ব্যবহার করা যায়।
+          find app/build/outputs/apk -type f -name "*.apk" -exec cp {} release-assets/ \; 2>/dev/null || true
+          find app/build/outputs/bundle -type f -name "*.aab" -exec cp {} release-assets/ \; 2>/dev/null || true
+
+          if [ -z "$(ls -A release-assets 2>/dev/null)" ]; then
+            echo "::warning::কোনো APK/AAB ফাইল পাওয়া যায়নি।"
+          else
+            echo "নিচের ফাইলগুলো পাওয়া গেছে:"
+            ls -la release-assets
+          fi
+
+      - name: Upload Build Artifacts
+        if: ${{ github.event.inputs.publish_target == 'artifact' || github.event.inputs.publish_target == 'both' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-outputs-${{ github.event.inputs.build_type || 'debug' }}
+          path: |
+            app/build/outputs/apk/
+            app/build/outputs/bundle/
+          if-no-files-found: ignore
+
+      - name: Resolve Release Tag
+        id: tag
+        if: ${{ github.event.inputs.publish_target == 'release' || github.event.inputs.publish_target == 'both' }}
+        run: |
+          set -euo pipefail
+          TAG="${{ github.event.inputs.release_tag }}"
+          if [ -z "$TAG" ]; then
+            TAG="build-${{ github.event.inputs.build_type || 'debug' }}-${{ github.run_number }}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Resolved release tag: $TAG"
+
+      - name: Create / Update GitHub Release
+        if: ${{ github.event.inputs.publish_target == 'release' || github.event.inputs.publish_target == 'both' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: ${{ steps.tag.outputs.tag }}
+          draft: ${{ github.event.inputs.draft_release == 'true' }}
+          prerelease: ${{ github.event.inputs.prerelease == 'true' }}
+          files: release-assets/*
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
