@@ -314,9 +314,10 @@ public class SettingsActivity extends AppCompatActivity {
                 public void onError(String errorMessage) {
                     btnLogin.setEnabled(true);
                     btnLogin.setText(getString(R.string.btn_sign_in));
+                    String safeMsg = com.ottking.devcode.security.SecurityUtils.sanitizeForUI(errorMessage);
                     new CustomDialog.Builder(SettingsActivity.this)
                             .setTitle(getString(R.string.title_login_failed))
-                            .setMessage(errorMessage)
+                            .setMessage(safeMsg)
                             .setPositiveButton(getString(R.string.btn_ok), dialog -> dialog.dismiss())
                             .show();
                 }
@@ -519,7 +520,7 @@ public class SettingsActivity extends AppCompatActivity {
                     public void onError(String errorMessage) {
                         btnForceSync.setEnabled(true);
                         btnForceSync.setText("Force Sync Now");
-                        Toast.makeText(SettingsActivity.this, "Sync error: " + errorMessage, Toast.LENGTH_SHORT).show();
+                        Toast.makeText(SettingsActivity.this, "Sync error: Unable to connect to server. Please try again.", Toast.LENGTH_SHORT).show();
                     }
                 });
             });
@@ -624,12 +625,14 @@ public class SettingsActivity extends AppCompatActivity {
                     ApiClient.getInstance(this).submitReport(category, desc, new ApiClient.ApiCallback<String>() {
                         @Override
                         public void onSuccess(String result) {
-                            Toast.makeText(SettingsActivity.this, result, Toast.LENGTH_LONG).show();
+                            String safeResult = com.ottking.devcode.security.SecurityUtils.sanitizeForUI(result);
+                            Toast.makeText(SettingsActivity.this, safeResult, Toast.LENGTH_LONG).show();
                         }
 
                         @Override
                         public void onError(String errorMessage) {
-                            Toast.makeText(SettingsActivity.this, "Failed to submit report: " + errorMessage, Toast.LENGTH_LONG).show();
+                            String safeError = com.ottking.devcode.security.SecurityUtils.sanitizeForUI(errorMessage);
+                            Toast.makeText(SettingsActivity.this, "Failed to submit report: " + safeError, Toast.LENGTH_LONG).show();
                         }
                     });
                 })

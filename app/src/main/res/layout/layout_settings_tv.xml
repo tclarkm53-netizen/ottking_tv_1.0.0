@@ -12,7 +12,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="TV Settings"
+            android:text="@string/settings_tv_title"
             android:textColor="@color/gold_primary"
             android:textSize="18sp"
             android:textStyle="bold" />
@@ -21,7 +21,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:text="Configure boot auto-start and server background data polling."
+            android:text="@string/settings_tv_desc"
             android:textColor="@color/text_secondary"
             android:textSize="13sp" />
 
@@ -46,7 +46,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Boot Player Mode"
+                    android:text="@string/setting_boot_player_title"
                     android:textColor="@color/white"
                     android:textSize="15sp"
                     android:textStyle="bold" />
@@ -55,7 +55,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
-                    android:text="When enabled, launches straight into live video player on device boot."
+                    android:text="@string/setting_boot_player_desc"
                     android:textColor="@color/text_secondary"
                     android:textSize="12sp" />
 
@@ -90,7 +90,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Real-Time Data Polling &amp; Auto Sync"
+                    android:text="@string/setting_auto_sync_title"
                     android:textColor="@color/white"
                     android:textSize="15sp"
                     android:textStyle="bold" />
@@ -99,7 +99,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
-                    android:text="Background sync keeps channels updated without interrupting video playback."
+                    android:text="@string/setting_auto_sync_desc"
                     android:textColor="@color/text_secondary"
                     android:textSize="12sp" />
 
@@ -128,7 +128,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="Last Server Sync Time:"
+                android:text="@string/setting_last_sync_time_label"
                 android:textColor="@color/white"
                 android:textSize="14sp" />
 
@@ -136,7 +136,7 @@
                 android:id="@+id/txtLastSyncTime"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Just now"
+                android:text="@string/sync_just_now"
                 android:textColor="@color/gold_primary"
                 android:textSize="14sp"
                 android:textStyle="bold" />
@@ -151,7 +151,7 @@
             android:background="@drawable/selector_pill_focus"
             android:focusable="true"
             android:clickable="true"
-            android:text="Force Sync Now"
+            android:text="@string/btn_force_sync"
             android:textColor="@color/selector_pill_text"
             android:textStyle="bold" />
 

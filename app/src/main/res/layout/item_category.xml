@@ -23,6 +23,7 @@
         android:layout_marginEnd="10dp"
         android:contentDescription="Category Icon"
         android:duplicateParentState="true"
+        android:scaleType="fitCenter"
         android:src="@drawable/ic_tv"
         app:tint="@color/selector_pill_text" />
 

@@ -75,6 +75,7 @@ public class MainActivity extends AppCompatActivity {
 
     private ActivityResultLauncher<Intent> voiceSearchLauncher;
     private ActivityResultLauncher<String> requestPermissionLauncher;
+    private com.ottking.devcode.utils.VoiceSearchHelper voiceSearchHelper;
 
     private int lastFocusedChannelPosition = 0;
     private boolean cameToSearchFromChannel = false;
@@ -113,7 +114,7 @@ public class MainActivity extends AppCompatActivity {
         if (btnBannerRetry != null) {
             btnBannerRetry.setOnFocusChangeListener((v, hasFocus) -> UIUtils.animateFocus(v, hasFocus, 1.05f, 6f));
             btnBannerRetry.setOnClickListener(v -> {
-                Toast.makeText(this, "সার্ভারের সাথে পুনরায় সিংক করা হচ্ছে...", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, getString(R.string.toast_resyncing_server), Toast.LENGTH_SHORT).show();
                 DataPollingManager.getInstance(this).triggerSyncNow();
                 updateNetworkStatusUI(checkIsConnected());
             });
@@ -135,17 +136,48 @@ public class MainActivity extends AppCompatActivity {
         ImageButton btnNotification = findViewById(R.id.btnNotification);
         ImageButton btnVoiceSearch = findViewById(R.id.btnVoiceSearch);
 
+        voiceSearchHelper = new com.ottking.devcode.utils.VoiceSearchHelper(this, new com.ottking.devcode.utils.VoiceSearchHelper.VoiceSearchCallback() {
+            @Override
+            public void onResult(String query) {
+                if (query != null && !query.trim().isEmpty()) {
+                    String recognizedText = query.trim();
+                    edtSearch.setText(recognizedText);
+                    try {
+                        edtSearch.setSelection(recognizedText.length());
+                    } catch (Exception ignored) {}
+                    Toast.makeText(MainActivity.this, getString(R.string.toast_searching_format, recognizedText), Toast.LENGTH_SHORT).show();
+                    filterChannels();
+                }
+            }
+
+            @Override
+            public void onCancelled() {
+                // Focus search box smoothly without crashing
+                if (edtSearch != null) {
+                    edtSearch.requestFocus();
+                }
+            }
+        });
+
         voiceSearchLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
-                    if (result.getResultCode() == RESULT_OK && result.getData() != null) {
-                        ArrayList<String> matches = result.getData().getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
-                        if (matches != null && !matches.isEmpty()) {
-                            String recognizedText = matches.get(0);
-                            edtSearch.setText(recognizedText);
-                            Toast.makeText(this, "Searching: " + recognizedText, Toast.LENGTH_SHORT).show();
+                    try {
+                        if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                            ArrayList<String> matches = result.getData().getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
+                            if (matches != null && !matches.isEmpty()) {
+                                String recognizedText = matches.get(0);
+                                if (recognizedText != null && !recognizedText.trim().isEmpty()) {
+                                    edtSearch.setText(recognizedText.trim());
+                                    try {
+                                        edtSearch.setSelection(recognizedText.trim().length());
+                                    } catch (Exception ignored) {}
+                                    Toast.makeText(this, getString(R.string.toast_searching_format, recognizedText.trim()), Toast.LENGTH_SHORT).show();
+                                    filterChannels();
+                                }
+                            }
                         }
-                    }
+                    } catch (Throwable ignored) {}
                 });
 
         requestPermissionLauncher = registerForActivityResult(
@@ -154,9 +186,11 @@ public class MainActivity extends AppCompatActivity {
                     if (isGranted) {
                         startVoiceSearch();
                     } else {
-                        Toast.makeText(this, "Microphone permission is required for Voice Search", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(this, R.string.toast_mic_permission_required, Toast.LENGTH_SHORT).show();
                     }
                 });
+
+        voiceSearchHelper.setLaunchers(voiceSearchLauncher, requestPermissionLauncher);
 
         if (btnVoiceSearch != null) {
             btnVoiceSearch.setOnClickListener(v -> startVoiceSearch());
@@ -266,20 +300,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void startVoiceSearch() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
-                != PackageManager.PERMISSION_GRANTED) {
-            requestPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO);
-            return;
-        }
-
-        Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
-        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-        intent.putExtra(RecognizerIntent.EXTRA_PROMPT, "Say channel name (e.g. Sports, News)...");
-
         try {
-            voiceSearchLauncher.launch(intent);
-        } catch (Exception e) {
-            Toast.makeText(this, "Voice search is not supported on this device", Toast.LENGTH_SHORT).show();
+            if (voiceSearchHelper != null) {
+                voiceSearchHelper.startVoiceSearch();
+            }
+        } catch (Throwable t) {
+            Toast.makeText(this, R.string.toast_voice_search_not_supported, Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -1035,6 +1061,9 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        if (voiceSearchHelper != null) {
+            voiceSearchHelper.destroy();
+        }
         if (connectivityManager != null && networkCallback != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             try {
                 connectivityManager.unregisterNetworkCallback(networkCallback);

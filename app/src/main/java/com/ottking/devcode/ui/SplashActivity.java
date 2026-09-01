@@ -63,7 +63,7 @@ public class SplashActivity extends AppCompatActivity {
         if (btnSplashRetry != null) {
             btnSplashRetry.setOnFocusChangeListener((v, hasFocus) -> UIUtils.animateFocus(v, hasFocus, 1.06f, 10f));
             btnSplashRetry.setOnClickListener(v -> {
-                showLoadingState("পুনরায় সার্ভারের সাথে সংযোগ স্থাপন করা হচ্ছে...");
+                showLoadingState(getString(R.string.splash_reconnecting));
                 handler.postDelayed(this::performNetworkAndServerSync, 400);
             });
         }
@@ -115,25 +115,25 @@ public class SplashActivity extends AppCompatActivity {
     }
 
     private void performNetworkAndServerSync() {
-        showLoadingState("ইন্টারনেট ও সার্ভার সংযোগ যাচাই করা হচ্ছে...");
+        showLoadingState(getString(R.string.splash_verifying_connection));
 
         // 1. Check if device has an active network connection
         if (!NetworkUtils.isNetworkConnected(this)) {
             showErrorState(
-                    "ইন্টারনেট সংযোগ পাওয়া যায়নি (No Network)",
-                    "আপনার ডিভাইসে কোনো ইন্টারনেট সংযোগ নেই। দয়া করে আপনার Wi-Fi, Ethernet বা মোবাইল ডেটা অন করে পুনরায় চেষ্টা করুন।"
+                    getString(R.string.splash_error_no_network_title),
+                    getString(R.string.splash_error_no_network_msg)
             );
             return;
         }
 
-        showLoadingState("Live TV channels and subscriptions are syncing...");
+        showLoadingState(getString(R.string.splash_syncing_data));
 
         // 2. Perform live server sync
         ApiClient.getInstance(this).syncCategoriesAndChannels(new ApiClient.ApiCallback<Boolean>() {
             @Override
             public void onSuccess(Boolean result) {
                 if (txtSplashStatus != null) {
-                    txtSplashStatus.setText("Sync successful! Launching the app...");
+                    txtSplashStatus.setText(getString(R.string.splash_sync_success));
                 }
                 
                 // Start background real-time data polling
@@ -147,8 +147,8 @@ public class SplashActivity extends AppCompatActivity {
             @Override
             public void onError(String errorMessage) {
                 showErrorState(
-                        "Server connection issue (Server Error)",
-                        errorMessage != null ? errorMessage : "Could not connect to the server. Please try again after a while."
+                        getString(R.string.splash_error_server_title),
+                        getString(R.string.splash_error_server_msg)
                 );
             }
         });

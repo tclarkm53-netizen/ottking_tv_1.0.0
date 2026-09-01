@@ -12,7 +12,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="System &amp; Diagnostics"
+            android:text="@string/settings_system_title"
             android:textColor="@color/gold_primary"
             android:textSize="18sp"
             android:textStyle="bold" />
@@ -21,7 +21,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:text="App updates, version specifications, developer credentials, and problem reporting."
+            android:text="@string/settings_system_desc"
             android:textColor="@color/text_secondary"
             android:textSize="13sp" />
 
@@ -61,7 +61,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="App Update"
+                        android:text="@string/btn_app_update_title"
                         android:textColor="@color/white"
                         android:textSize="14sp"
                         android:textStyle="bold" />
@@ -69,7 +69,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Check latest version"
+                        android:text="@string/btn_app_update_desc"
                         android:textColor="@color/text_secondary"
                         android:textSize="11sp" />
 
@@ -106,7 +106,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="App Info"
+                        android:text="@string/btn_app_info_title"
                         android:textColor="@color/white"
                         android:textSize="14sp"
                         android:textStyle="bold" />
@@ -114,7 +114,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="System build specs"
+                        android:text="@string/btn_app_info_desc"
                         android:textColor="@color/text_secondary"
                         android:textSize="11sp" />
 
@@ -151,7 +151,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Developer Info"
+                        android:text="@string/btn_dev_info_title"
                         android:textColor="@color/white"
                         android:textSize="14sp"
                         android:textStyle="bold" />
@@ -159,7 +159,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Engineering details"
+                        android:text="@string/btn_dev_info_desc"
                         android:textColor="@color/text_secondary"
                         android:textSize="11sp" />
 
@@ -196,7 +196,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Report a Problem"
+                        android:text="@string/btn_report_problem_title"
                         android:textColor="@color/white"
                         android:textSize="14sp"
                         android:textStyle="bold" />
@@ -204,7 +204,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Send feedback to team"
+                        android:text="@string/btn_report_problem_desc"
                         android:textColor="@color/text_secondary"
                         android:textSize="11sp" />
 

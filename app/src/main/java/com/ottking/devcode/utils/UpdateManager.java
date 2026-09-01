@@ -57,7 +57,7 @@ public class UpdateManager {
             public void onError(String errorMessage) {
                 if (activity.isFinishing() || activity.isDestroyed()) return;
                 if (showUpToDateToast) {
-                    Toast.makeText(activity, "Update check failed: " + errorMessage, Toast.LENGTH_LONG).show();
+                    Toast.makeText(activity, "Update check failed. Please try again later.", Toast.LENGTH_SHORT).show();
                 }
             }
         });
@@ -236,7 +236,7 @@ public class UpdateManager {
                     }
                     new CustomDialog.Builder(activity)
                             .setTitle("Download Error")
-                            .setMessage("Failed to download update: " + e.getLocalizedMessage() + "\n\nWould you like to retry?")
+                            .setMessage("Failed to download update. Please check your internet connection.\n\nWould you like to retry?")
                             .setWidthPercent(0.95f)
                             .setPositiveButton("Retry Download", dialog -> {
                                 dialog.dismiss();
@@ -294,7 +294,7 @@ public class UpdateManager {
             activity.startActivity(intent);
         } catch (Exception e) {
             e.printStackTrace();
-            Toast.makeText(activity, "Error starting Package Installer: " + e.getLocalizedMessage(), Toast.LENGTH_LONG).show();
+            Toast.makeText(activity, "Error starting Package Installer. Please verify permissions.", Toast.LENGTH_LONG).show();
         }
     }
 }

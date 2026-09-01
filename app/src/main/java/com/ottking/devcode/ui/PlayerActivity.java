@@ -115,6 +115,7 @@ public class PlayerActivity extends AppCompatActivity {
     private List<ChannelEntity> allChannelsList = new ArrayList<>();
 
     private final Handler uiOverlayHandler = new Handler(Looper.getMainLooper());
+    private static final long DRAWER_AUTO_HIDE_DELAY_MS = 6000L; // Auto-hide channel list after 6s of inactivity
     private final Runnable autoHideOverlayRunnable = () -> {
         if (cardChannelOverlay != null && drawerChannelList != null) {
             if (drawerChannelList.getVisibility() != View.VISIBLE) {
@@ -122,6 +123,7 @@ public class PlayerActivity extends AppCompatActivity {
             }
         }
     };
+    private final Runnable autoHideDrawerRunnable = this::onDrawerAutoHideTriggered;
 
     private int currentChannelId = 1;
     private int currentChannelNumber = 1;
@@ -146,6 +148,7 @@ public class PlayerActivity extends AppCompatActivity {
 
     private ActivityResultLauncher<Intent> voiceSearchLauncher;
     private ActivityResultLauncher<String> requestPermissionLauncher;
+    private com.ottking.devcode.utils.VoiceSearchHelper voiceSearchHelper;
     private EditText edtPlayerSearch;
 
     @Override
@@ -156,18 +159,49 @@ public class PlayerActivity extends AppCompatActivity {
 
         prefs = AppPreferences.getInstance(this);
 
+        voiceSearchHelper = new com.ottking.devcode.utils.VoiceSearchHelper(this, new com.ottking.devcode.utils.VoiceSearchHelper.VoiceSearchCallback() {
+            @Override
+            public void onResult(String query) {
+                if (query != null && !query.trim().isEmpty()) {
+                    String recognizedText = query.trim();
+                    if (edtPlayerSearch != null) {
+                        edtPlayerSearch.setText(recognizedText);
+                        try {
+                            edtPlayerSearch.setSelection(recognizedText.length());
+                        } catch (Exception ignored) {}
+                    }
+                    filterPlayerChannels(recognizedText);
+                }
+            }
+
+            @Override
+            public void onCancelled() {
+                if (edtPlayerSearch != null) {
+                    edtPlayerSearch.requestFocus();
+                }
+            }
+        });
+
         voiceSearchLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
-                    if (result.getResultCode() == RESULT_OK && result.getData() != null) {
-                        ArrayList<String> matches = result.getData().getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
-                        if (matches != null && !matches.isEmpty()) {
-                            String recognizedText = matches.get(0);
-                            if (edtPlayerSearch != null) {
-                                edtPlayerSearch.setText(recognizedText);
+                    try {
+                        if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                            ArrayList<String> matches = result.getData().getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
+                            if (matches != null && !matches.isEmpty()) {
+                                String recognizedText = matches.get(0);
+                                if (recognizedText != null && !recognizedText.trim().isEmpty()) {
+                                    if (edtPlayerSearch != null) {
+                                        edtPlayerSearch.setText(recognizedText.trim());
+                                        try {
+                                            edtPlayerSearch.setSelection(recognizedText.trim().length());
+                                        } catch (Exception ignored) {}
+                                    }
+                                    filterPlayerChannels(recognizedText.trim());
+                                }
                             }
                         }
-                    }
+                    } catch (Throwable ignored) {}
                 });
 
         requestPermissionLauncher = registerForActivityResult(
@@ -175,8 +209,12 @@ public class PlayerActivity extends AppCompatActivity {
                 isGranted -> {
                     if (isGranted) {
                         startVoiceSearch();
+                    } else {
+                        Toast.makeText(this, R.string.toast_mic_permission_required, Toast.LENGTH_SHORT).show();
                     }
                 });
+
+        voiceSearchHelper.setLaunchers(voiceSearchLauncher, requestPermissionLauncher);
 
         playerView = findViewById(R.id.playerView);
         playerView.setUseController(false);
@@ -293,11 +331,29 @@ public class PlayerActivity extends AppCompatActivity {
 
     private void hideOverlays() {
         uiOverlayHandler.removeCallbacks(autoHideOverlayRunnable);
+        uiOverlayHandler.removeCallbacks(autoHideDrawerRunnable);
         channelNumHandler.removeCallbacks(tuneChannelNumRunnable);
         channelNumBuffer.setLength(0);
         if (cardChannelOverlay != null) cardChannelOverlay.setVisibility(View.GONE);
         if (drawerChannelList != null) drawerChannelList.setVisibility(View.GONE);
         if (cardChannelNumOverlay != null) cardChannelNumOverlay.setVisibility(View.GONE);
+    }
+
+    private void resetDrawerAutoHideTimer() {
+        uiOverlayHandler.removeCallbacks(autoHideDrawerRunnable);
+        if (drawerChannelList != null && drawerChannelList.getVisibility() == View.VISIBLE) {
+            uiOverlayHandler.postDelayed(autoHideDrawerRunnable, DRAWER_AUTO_HIDE_DELAY_MS);
+        }
+    }
+
+    private void onDrawerAutoHideTriggered() {
+        if (drawerChannelList != null && drawerChannelList.getVisibility() == View.VISIBLE) {
+            if (edtPlayerSearch != null && edtPlayerSearch.isCursorVisible()) {
+                resetDrawerAutoHideTimer();
+                return;
+            }
+            hideOverlays();
+        }
     }
 
     private void showChannelDrawer() {
@@ -310,6 +366,7 @@ public class PlayerActivity extends AppCompatActivity {
                 channelAdapter.setPlayingChannelId(currentChannelId);
             }
             focusPlayingOrFirstChannel();
+            resetDrawerAutoHideTimer();
         }
     }
 
@@ -404,7 +461,19 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     @Override
+    public void onUserInteraction() {
+        super.onUserInteraction();
+        if (drawerChannelList != null && drawerChannelList.getVisibility() == View.VISIBLE) {
+            resetDrawerAutoHideTimer();
+        }
+    }
+
+    @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
+        if (drawerChannelList != null && drawerChannelList.getVisibility() == View.VISIBLE) {
+            resetDrawerAutoHideTimer();
+        }
+
         if (event.getAction() == KeyEvent.ACTION_DOWN) {
             int keyCode = event.getKeyCode();
 
@@ -899,7 +968,28 @@ public class PlayerActivity extends AppCompatActivity {
 
     private void setupChannelDrawer() {
         recyclerPlayerChannels.setLayoutManager(new LinearLayoutManager(this));
+        recyclerPlayerChannels.addOnScrollListener(new RecyclerView.OnScrollListener() {
+            @Override
+            public void onScrollStateChanged(RecyclerView recyclerView, int newState) {
+                super.onScrollStateChanged(recyclerView, newState);
+                resetDrawerAutoHideTimer();
+            }
+
+            @Override
+            public void onScrolled(RecyclerView recyclerView, int dx, int dy) {
+                super.onScrolled(recyclerView, dx, dy);
+                if (dx != 0 || dy != 0) {
+                    resetDrawerAutoHideTimer();
+                }
+            }
+        });
         channelAdapter = new ChannelAdapter(true, channel -> {
+            if (channel.id == currentChannelId) {
+                // If user clicks the currently playing channel, hide list and show info card
+                hideOverlays();
+                showCardOverlayTemporarily(4000);
+                return;
+            }
             currentChannelId = channel.id;
             currentStreamUrl = channel.streamUrl;
             currentChannelName = channel.name;
@@ -1134,19 +1224,12 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     private void startVoiceSearch() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
-                != PackageManager.PERMISSION_GRANTED) {
-            requestPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO);
-            return;
-        }
-
-        Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
-        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-        intent.putExtra(RecognizerIntent.EXTRA_PROMPT, "Say channel name (e.g. Sports, News)...");
-
         try {
-            voiceSearchLauncher.launch(intent);
-        } catch (Exception ignored) {
+            if (voiceSearchHelper != null) {
+                voiceSearchHelper.startVoiceSearch();
+            }
+        } catch (Throwable t) {
+            Toast.makeText(this, R.string.toast_voice_search_not_supported, Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -1834,16 +1917,18 @@ public class PlayerActivity extends AppCompatActivity {
         boolean isCardVisible = cardChannelOverlay != null && cardChannelOverlay.getVisibility() == View.VISIBLE;
 
         if (isDrawerVisible) {
-            if (edtPlayerSearch != null && (edtPlayerSearch.isCursorVisible() || !edtPlayerSearch.getText().toString().isEmpty())) {
-                edtPlayerSearch.setText("");
-                edtPlayerSearch.setCursorVisible(false);
-                edtPlayerSearch.setFocusableInTouchMode(false);
-                InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-                if (imm != null) {
-                    imm.hideSoftInputFromWindow(edtPlayerSearch.getWindowToken(), 0);
+            if (edtPlayerSearch != null) {
+                if (edtPlayerSearch.isCursorVisible()) {
+                    edtPlayerSearch.setCursorVisible(false);
+                    edtPlayerSearch.setFocusableInTouchMode(false);
+                    InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+                    if (imm != null) {
+                        imm.hideSoftInputFromWindow(edtPlayerSearch.getWindowToken(), 0);
+                    }
                 }
-                focusPlayingOrFirstChannel();
-                return true;
+                if (!edtPlayerSearch.getText().toString().isEmpty()) {
+                    edtPlayerSearch.setText("");
+                }
             }
             hideOverlays();
             return true;
@@ -1996,6 +2081,9 @@ public class PlayerActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        if (voiceSearchHelper != null) {
+            voiceSearchHelper.destroy();
+        }
         retryHandler.removeCallbacksAndMessages(null);
         if (bufferingWatchdogHandler != null) {
             bufferingWatchdogHandler.removeCallbacksAndMessages(null);

@@ -10,10 +10,15 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.bumptech.glide.Glide;
+import com.bumptech.glide.load.engine.DiskCacheStrategy;
 import com.ottking.devcode.R;
+import com.ottking.devcode.config.Config;
 import com.ottking.devcode.db.CategoryEntity;
+import com.ottking.devcode.security.SecurityUtils;
 import com.ottking.devcode.utils.UIUtils;
 
 import java.util.ArrayList;
@@ -165,7 +170,9 @@ public class CategoryAdapter extends RecyclerView.Adapter<CategoryAdapter.Catego
             for (int i = 0; i < categories.size(); i++) {
                 CategoryEntity oldItem = this.categoryList.get(i);
                 CategoryEntity newItem = categories.get(i);
-                if (oldItem.id != newItem.id || (oldItem.name != null && !oldItem.name.equals(newItem.name))) {
+                if (oldItem.id != newItem.id 
+                        || (oldItem.name != null && !oldItem.name.equals(newItem.name))
+                        || (oldItem.icon != null && !oldItem.icon.equals(newItem.icon))) {
                     same = false;
                     break;
                 }
@@ -191,11 +198,47 @@ public class CategoryAdapter extends RecyclerView.Adapter<CategoryAdapter.Catego
         CategoryEntity category = categoryList.get(position);
         holder.txtCatName.setText(category.name);
 
-        if ("ic_play".equals(category.icon)) {
+        String iconStr = category.icon != null ? category.icon.trim() : "";
+        if (iconStr.startsWith("http://") || iconStr.startsWith("https://")) {
+            // Full remote image URL from server
+            holder.imgCatIcon.setImageTintList(null);
+            holder.imgCatIcon.setColorFilter(null);
+            Glide.with(holder.itemView.getContext())
+                    .load(iconStr)
+                    .diskCacheStrategy(DiskCacheStrategy.ALL)
+                    .placeholder(R.drawable.ic_tv)
+                    .error(R.drawable.ic_tv)
+                    .into(holder.imgCatIcon);
+        } else if (iconStr.contains("/") || iconStr.endsWith(".png") || iconStr.endsWith(".jpg") || iconStr.endsWith(".jpeg") || iconStr.endsWith(".webp") || iconStr.endsWith(".svg")) {
+            // Relative image path from server
+            String baseUrl = SecurityUtils.getApiUrl();
+            String fullUrl;
+            if (baseUrl != null && baseUrl.endsWith("/") && iconStr.startsWith("/")) {
+                fullUrl = baseUrl + iconStr.substring(1);
+            } else if (baseUrl != null && !baseUrl.endsWith("/") && !iconStr.startsWith("/")) {
+                fullUrl = baseUrl + "/" + iconStr;
+            } else {
+                fullUrl = (baseUrl != null ? baseUrl : "") + iconStr;
+            }
+            holder.imgCatIcon.setImageTintList(null);
+            holder.imgCatIcon.setColorFilter(null);
+            Glide.with(holder.itemView.getContext())
+                    .load(fullUrl)
+                    .diskCacheStrategy(DiskCacheStrategy.ALL)
+                    .placeholder(R.drawable.ic_tv)
+                    .error(R.drawable.ic_tv)
+                    .into(holder.imgCatIcon);
+        } else if ("ic_play".equalsIgnoreCase(iconStr)) {
+            Glide.with(holder.itemView.getContext()).clear(holder.imgCatIcon);
+            holder.imgCatIcon.setImageTintList(ContextCompat.getColorStateList(holder.itemView.getContext(), R.color.selector_pill_text));
             holder.imgCatIcon.setImageResource(R.drawable.ic_play);
-        } else if ("ic_info".equals(category.icon)) {
+        } else if ("ic_info".equalsIgnoreCase(iconStr)) {
+            Glide.with(holder.itemView.getContext()).clear(holder.imgCatIcon);
+            holder.imgCatIcon.setImageTintList(ContextCompat.getColorStateList(holder.itemView.getContext(), R.color.selector_pill_text));
             holder.imgCatIcon.setImageResource(R.drawable.ic_info);
         } else {
+            Glide.with(holder.itemView.getContext()).clear(holder.imgCatIcon);
+            holder.imgCatIcon.setImageTintList(ContextCompat.getColorStateList(holder.itemView.getContext(), R.color.selector_pill_text));
             holder.imgCatIcon.setImageResource(R.drawable.ic_tv);
         }
 

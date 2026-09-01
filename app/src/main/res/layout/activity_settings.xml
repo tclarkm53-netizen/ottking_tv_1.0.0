@@ -32,7 +32,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="SETTINGS"
+            android:text="@string/settings_header"
             android:textColor="@color/gold_primary"
             android:textSize="18sp"
             android:textStyle="bold" />
@@ -65,7 +65,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="10dp"
-                android:text="NAVIGATION"
+                android:text="@string/navigation_header"
                 android:textColor="@color/gold_primary"
                 android:textSize="12sp"
                 android:textStyle="bold" />
@@ -101,7 +101,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="© 2026 OTT KING. All Rights Reserved."
+            android:text="@string/copyright_short"
             android:textColor="@color/text_muted"
             android:textSize="11sp" />
 

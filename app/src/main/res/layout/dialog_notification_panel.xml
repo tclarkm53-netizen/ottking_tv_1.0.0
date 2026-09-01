@@ -27,7 +27,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="NOTIFICATIONS"
+            android:text="@string/notif_panel_title"
             android:textColor="@color/gold_primary"
             android:textSize="16sp"
             android:textStyle="bold" />
@@ -51,7 +51,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="2dp"
         android:layout_marginBottom="12dp"
-        android:text="Live updates, server alerts &amp; announcements"
+        android:text="@string/notif_panel_subtitle"
         android:textColor="@color/text_secondary"
         android:textSize="11sp" />
 
@@ -88,7 +88,7 @@
             android:focusable="true"
             android:paddingStart="8dp"
             android:paddingEnd="8dp"
-            android:text="Mark All Read"
+            android:text="@string/btn_mark_all_read"
             android:textColor="@color/gold_primary"
             android:textSize="10sp" />
 
@@ -112,7 +112,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
-            android:text="No notifications right now"
+            android:text="@string/notif_empty"
             android:textColor="@color/text_secondary"
             android:textSize="13sp"
             android:visibility="gone" />

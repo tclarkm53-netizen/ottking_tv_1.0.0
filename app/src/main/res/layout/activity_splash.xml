@@ -42,7 +42,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:letterSpacing="0.15"
-            android:text="OTT KING"
+            android:text="@string/app_name"
             android:textColor="@color/gold_primary"
             android:textSize="32sp"
             android:textStyle="bold" />
@@ -51,7 +51,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:text="ULTRA LIVE TV &amp; STREAMING"
+            android:text="@string/app_tagline"
             android:textColor="@color/text_secondary"
             android:textSize="12sp" />
 
@@ -70,7 +70,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="Initializing Secure Connection..."
+            android:text="@string/splash_init_connection"
             android:textColor="@color/text_primary"
             android:textSize="13sp"
             android:visibility="gone"/>
@@ -102,7 +102,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:gravity="center"
-            android:text="Internet connection not found. (No Network)"
+            android:text="@string/splash_error_no_network_title"
             android:textColor="#FF5252"
             android:textSize="22sp"
             android:textStyle="bold" />
@@ -114,7 +114,7 @@
             android:layout_marginTop="8dp"
             android:gravity="center"
             android:maxWidth="480dp"
-            android:text="Could not connect to the server. Please check your Wi-Fi, Ethernet, or mobile internet connection and try again."
+            android:text="@string/splash_error_no_network_msg"
             android:textColor="@color/text_secondary"
             android:textSize="14sp"
             android:lineSpacingExtra="3dp" />
@@ -133,7 +133,7 @@
                 android:background="@drawable/btn_retry_selector"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
-                android:text="🔄 Retry"
+                android:text="@string/btn_retry"
                 android:textAllCaps="false"
                 android:textColor="@color/white"
                 android:textSize="14sp"
@@ -147,7 +147,7 @@
                 android:background="@drawable/btn_secondary_selector"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
-                android:text="Exit"
+                android:text="@string/btn_exit"
                 android:textAllCaps="false"
                 android:textColor="@color/text_secondary"
                 android:textSize="14sp" />

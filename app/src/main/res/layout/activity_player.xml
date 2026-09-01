@@ -94,7 +94,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="CHANNEL NUMBER"
+            android:text="@string/channel_number_header"
             android:textColor="@color/text_secondary"
             android:textSize="10sp"
             android:textStyle="bold" />
@@ -135,7 +135,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:focusable="false"
-                android:text="LIVE CHANNELS"
+                android:text="@string/live_channels_header"
                 android:textColor="@color/gold_primary"
                 android:textSize="14sp"
                 android:textStyle="bold" />
@@ -174,7 +174,7 @@
             android:background="@drawable/selector_pill_focus"
             android:drawableStart="@drawable/ic_search"
             android:drawablePadding="8dp"
-            android:hint="Filter channels..."
+            android:hint="@string/filter_channels_hint"
             android:imeOptions="actionSearch"
             android:inputType="text"
             android:paddingStart="12dp"

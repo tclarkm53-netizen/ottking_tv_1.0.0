@@ -1,5 +1,21 @@
 <resources>
+    <!-- App & General -->
     <string name="app_name">OTT KING</string>
+    <string name="app_tagline">ULTRA LIVE TV &amp; STREAMING</string>
+    <string name="header_live_tv">LIVE TV</string>
+    <string name="copyright_text">Copyright © 2026 OTT KING. All Rights Reserved.</string>
+    <string name="copyright_short">© 2026 OTT KING. All Rights Reserved.</string>
+    <string name="search_channels_hint">Search channels...</string>
+    <string name="filter_channels_hint">Filter channels...</string>
+    <string name="status_online">ONLINE</string>
+    <string name="status_offline">OFFLINE</string>
+    <string name="all_channels">All Channels</string>
+    <string name="channels_count_format">%d Channels</string>
+    <string name="category_header">CATEGORIES</string>
+    <string name="settings_header">SETTINGS</string>
+    <string name="navigation_header">NAVIGATION</string>
+
+    <!-- Dialogs & Exit -->
     <string name="exit_app_title">Exit OTT KING?</string>
     <string name="exit_app_message">Are you sure you want to close OTT KING?</string>
     <string name="exit_player_title">Stop Playback &amp; Exit?</string>
@@ -11,12 +27,102 @@
     <string name="btn_ok">OK</string>
     <string name="btn_cancel">Cancel</string>
     <string name="btn_close">Close</string>
-    <string name="btn_retry">Retry</string>
+    <string name="btn_retry">🔄 Retry</string>
+    <string name="btn_retry_plain">Retry</string>
+    <string name="btn_exit">Exit</string>
+    <string name="btn_dashboard">Dashboard</string>
     <string name="btn_update_now">Update Now</string>
     <string name="btn_later">Later</string>
     <string name="btn_sign_in">Sign In</string>
+    <string name="btn_logout_account">Logout Account</string>
     <string name="btn_sign_out">Sign Out</string>
     <string name="btn_submit_report">Submit Report</string>
+    <string name="btn_force_sync">Force Sync Now</string>
+
+    <!-- Splash Screen -->
+    <string name="splash_init_connection">Initializing Secure Connection...</string>
+    <string name="splash_reconnecting">Reconnecting to server...</string>
+    <string name="splash_verifying_connection">Verifying internet and server connection...</string>
+    <string name="splash_syncing_data">Live TV channels and subscriptions are syncing...</string>
+    <string name="splash_sync_success">Sync successful! Launching the app...</string>
+    <string name="splash_error_no_network_title">Internet connection not found (No Network)</string>
+    <string name="splash_error_no_network_msg">There is no internet connection on your device. Please turn on Wi-Fi, Ethernet, or mobile data and try again.</string>
+    <string name="splash_error_server_title">Server connection issue (Server Error)</string>
+    <string name="splash_error_server_msg">Could not connect to the server. Please try again after a while.</string>
+
+    <!-- Offline Banner -->
+    <string name="banner_no_internet_msg">Internet connection disconnected (Offline) — Live stream and real-time sync will not work.</string>
+
+    <!-- Settings - Account -->
+    <string name="settings_account_title">Account &amp; Subscriber Credentials</string>
+    <string name="settings_account_desc">Sign in with your subscriber account to unlock 4K Ultra HD live TV and VIP Channels.</string>
+    <string name="label_username">Subscriber Username</string>
+    <string name="hint_username">Enter Username</string>
+    <string name="label_password">Password</string>
+    <string name="hint_password">Enter Password</string>
+    <string name="profile_username_format">Username: %s</string>
+    <string name="profile_package_format">Subscription: %s</string>
+    <string name="profile_expiry_format">Expiry Date: %s</string>
+    <string name="profile_device_id_format">Bound Device ID: %s</string>
+
+    <!-- Settings - Player -->
+    <string name="settings_player_title">Player Settings</string>
+    <string name="settings_player_desc">Configure default aspect ratio, resolution, decoding engine, and buffer size.</string>
+    <string name="setting_aspect_ratio_title">Default Screen Aspect Ratio</string>
+    <string name="setting_aspect_ratio_desc">Set default video sizing for all channels (Fit, Stretch, Zoom).</string>
+    <string name="setting_resolution_title">Default Streaming Resolution</string>
+    <string name="setting_resolution_desc">Default max video quality (Auto, 1080p, 720p, 480p).</string>
+    <string name="setting_hw_accel_title">Hardware Acceleration (HW/HW+)</string>
+    <string name="setting_hw_accel_desc">Use GPU hardware decoding for smooth 60fps playback.</string>
+    <string name="setting_buffer_title">Playback Pre-Buffer Mode</string>
+    <string name="setting_buffer_desc">Controls stream load buffer duration for fast start or slow connections.</string>
+    <string name="setting_hls_mode_title">HLS Protocol Optimization (.m3u8)</string>
+    <string name="setting_hls_mode_desc">Enable fast chunkless preparation and low-latency HLS pipeline.</string>
+    <string name="setting_mpd_mode_title">MPD (DASH) Optimization (.mpd)</string>
+    <string name="setting_mpd_mode_desc">Dedicated isolated DASH chunk source and live synchronization.</string>
+
+    <!-- Settings - TV -->
+    <string name="settings_tv_title">TV Settings</string>
+    <string name="settings_tv_desc">Configure boot auto-start and server background data polling.</string>
+    <string name="setting_boot_player_title">Boot Player Mode</string>
+    <string name="setting_boot_player_desc">When enabled, launches straight into live video player on device boot.</string>
+    <string name="setting_auto_sync_title">Real-Time Data Polling &amp; Auto Sync</string>
+    <string name="setting_auto_sync_desc">Background sync keeps channels updated without interrupting video playback.</string>
+    <string name="setting_last_sync_time_label">Last Server Sync Time:</string>
+    <string name="sync_just_now">Just now</string>
+
+    <!-- Settings - System -->
+    <string name="settings_system_title">System &amp; Diagnostics</string>
+    <string name="settings_system_desc">App updates, version specifications, developer credentials, and problem reporting.</string>
+    <string name="btn_app_update_title">App Update</string>
+    <string name="btn_app_update_desc">Check latest version</string>
+    <string name="btn_app_info_title">App Info</string>
+    <string name="btn_app_info_desc">System build specs</string>
+    <string name="btn_dev_info_title">Developer Info</string>
+    <string name="btn_dev_info_desc">Engineering details</string>
+    <string name="btn_report_problem_title">Report a Problem</string>
+    <string name="btn_report_problem_desc">Send feedback to team</string>
+
+    <!-- Player Overlay & Live Drawer -->
+    <string name="live_channels_header">LIVE CHANNELS</string>
+    <string name="channel_number_header">CHANNEL NUMBER</string>
+    <string name="live_tv_player_badge">LIVE TV PLAYER</string>
+    <string name="badge_free">FREE</string>
+    <string name="badge_vip">VIP</string>
+    <string name="type_hls">HLS</string>
+    <string name="type_dash">DASH</string>
+    <string name="title_player_settings">PLAYER &amp; SYSTEM SETTINGS</string>
+    <string name="now_playing_live_stream">Now Playing • Live Stream</string>
+    <string name="live_channel">Live Channel</string>
+
+    <!-- Notifications Panel -->
+    <string name="notif_panel_title">NOTIFICATIONS</string>
+    <string name="notif_panel_subtitle">Live updates, server alerts &amp; announcements</string>
+    <string name="notif_unread_format">%d Unread</string>
+    <string name="btn_mark_all_read">Mark All Read</string>
+    <string name="notif_empty">No notifications right now</string>
+
+    <!-- Updates & System Info -->
     <string name="title_up_to_date">Up To Date</string>
     <string name="msg_up_to_date">You are already using the latest version of OTT KING.</string>
     <string name="title_new_update">New Update Available</string>
@@ -29,8 +135,28 @@
     <string name="msg_server_connection_failed">Unable to sync with live TV server. Please verify server status or network connection and retry.</string>
     <string name="title_app_permanently_down">App Permanently Down</string>
     <string name="msg_app_permanently_down">The OTT KING server endpoint is currently offline or undergoing maintenance. Please check back later.</string>
-    <string name="title_player_settings">PLAYER &amp; SYSTEM SETTINGS</string>
-    <string name="now_playing_live_stream">Now Playing • Live Stream</string>
-    <string name="live_channel">Live Channel</string>
-    <string name="copyright_text">Copyright © 2026 OTT KING. All Rights Reserved.</string>
+
+    <!-- Network & Sync Toasts -->
+    <string name="toast_resyncing_server">Re-syncing with server...</string>
+    <string name="toast_network_online">Connected (Online)</string>
+    <string name="toast_network_offline">No Connection (Downtime/Buffering)</string>
+    <string name="toast_searching_format">Searching: %s</string>
+    <string name="toast_mic_permission_required">Microphone permission is required for Voice Search</string>
+    <string name="toast_voice_search_not_supported">Voice search is not supported on this device</string>
+    <string name="toast_enter_credentials">Please enter username and password</string>
+    <string name="toast_welcome_format">Welcome %s!</string>
+    <string name="toast_logged_out">Logged out</string>
+    <string name="toast_sync_completed">Server sync completed!</string>
+    <string name="toast_sync_error_format">Sync error: %s</string>
+    <string name="toast_report_failed_format">Failed to submit report: %s</string>
+    <string name="toast_boot_player_mode_format">Boot Player Mode %s</string>
+    <string name="toast_auto_sync_mode_format">Auto Sync %s</string>
+    <string name="toast_hw_accel_enabled">HW Acceleration Enabled</string>
+    <string name="toast_sw_decoding_enabled">SW Decoding Enabled</string>
+    <string name="toast_enabled">ENABLED</string>
+    <string name="toast_disabled">DISABLED</string>
+    <string name="net_error_no_connection">No internet connection. Please check your network.</string>
+    <string name="net_error_server_unavailable">Unable to establish connection to server. Please try again later.</string>
+    <string name="net_error_no_channel_data">Channel data not received from server.</string>
+    <string name="net_error_server_error_format">Server is temporarily unavailable. Please try again later.</string>
 </resources>

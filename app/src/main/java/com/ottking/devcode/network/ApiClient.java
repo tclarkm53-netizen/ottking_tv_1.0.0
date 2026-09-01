@@ -85,7 +85,7 @@ public class ApiClient {
         executor.execute(() -> {
             try {
                 if (!NetworkUtils.isNetworkConnected(context)) {
-                    mainHandler.post(() -> callback.onError("ইন্টারনেট সংযোগ নেই। দয়া করে আপনার নেটওয়ার্ক চেক করুন।"));
+                    mainHandler.post(() -> callback.onError(context.getString(com.ottking.devcode.R.string.net_error_no_connection)));
                     return;
                 }
 
@@ -113,11 +113,36 @@ public class ApiClient {
                             if (catArray != null) {
                                 for (int i = 0; i < catArray.length(); i++) {
                                     JSONObject item = catArray.getJSONObject(i);
-                                    catEntities.add(new CategoryEntity(
-                                            item.getInt("id"),
-                                            item.getString("name"),
-                                            item.optString("icon", "ic_tv")
-                                    ));
+                                    int catId = item.optInt("id", item.optInt("category_id", item.optInt("cat_id", i + 1)));
+                                    String catName = item.optString("name", item.optString("category_name", item.optString("title", "Category " + catId)));
+                                    
+                                    String catIcon = "";
+                                    if (item.has("icon") && !item.isNull("icon")) {
+                                        catIcon = item.optString("icon", "").trim();
+                                    }
+                                    if (catIcon.isEmpty() && item.has("icon_url") && !item.isNull("icon_url")) {
+                                        catIcon = item.optString("icon_url", "").trim();
+                                    }
+                                    if (catIcon.isEmpty() && item.has("category_icon") && !item.isNull("category_icon")) {
+                                        catIcon = item.optString("category_icon", "").trim();
+                                    }
+                                    if (catIcon.isEmpty() && item.has("image") && !item.isNull("image")) {
+                                        catIcon = item.optString("image", "").trim();
+                                    }
+                                    if (catIcon.isEmpty() && item.has("image_url") && !item.isNull("image_url")) {
+                                        catIcon = item.optString("image_url", "").trim();
+                                    }
+                                    if (catIcon.isEmpty() && item.has("logo") && !item.isNull("logo")) {
+                                        catIcon = item.optString("logo", "").trim();
+                                    }
+                                    if (catIcon.isEmpty() && item.has("logo_url") && !item.isNull("logo_url")) {
+                                        catIcon = item.optString("logo_url", "").trim();
+                                    }
+                                    if (catIcon.isEmpty()) {
+                                        catIcon = "ic_tv";
+                                    }
+
+                                    catEntities.add(new CategoryEntity(catId, catName, catIcon));
                                 }
                             }
                         }
@@ -178,13 +203,13 @@ public class ApiClient {
                     mainHandler.post(() -> callback.onSuccess(true));
                 } else {
                     String finalErr = (serverErrorMessage != null && !serverErrorMessage.isEmpty())
-                            ? "সার্ভারের সাথে সংযোগ স্থাপন করা সম্ভব হয়নি: " + serverErrorMessage
-                            : "সার্ভার থেকে চ্যানেল ডেটা পাওয়া যায়নি।";
+                            ? context.getString(com.ottking.devcode.R.string.net_error_server_unavailable)
+                            : context.getString(com.ottking.devcode.R.string.net_error_no_channel_data);
                     mainHandler.post(() -> callback.onError(finalErr));
                 }
             } catch (Exception e) {
                 e.printStackTrace();
-                mainHandler.post(() -> callback.onError("সার্ভার এরর: " + e.getLocalizedMessage()));
+                mainHandler.post(() -> callback.onError(context.getString(com.ottking.devcode.R.string.net_error_server_error_format)));
             }
         });
     }
@@ -227,14 +252,15 @@ public class ApiClient {
 
                         mainHandler.post(() -> callback.onSuccess(info));
                     } else {
-                        String msg = resObj.optString("message", "Login failed");
-                        mainHandler.post(() -> callback.onError(msg));
+                        String msg = resObj.optString("message", "Login failed. Please check your credentials.");
+                        mainHandler.post(() -> callback.onError(SecurityUtils.sanitizeForUI(msg)));
                     }
                 } else {
-                    mainHandler.post(() -> callback.onError("Server connection error"));
+                    mainHandler.post(() -> callback.onError("Unable to connect to server. Please try again."));
                 }
             } catch (Exception e) {
-                mainHandler.post(() -> callback.onError("Error: " + e.getLocalizedMessage()));
+                e.printStackTrace();
+                mainHandler.post(() -> callback.onError("Login failed. Please try again."));
             }
         });
     }
@@ -334,7 +360,8 @@ public class ApiClient {
                     mainHandler.post(() -> callback.onError("Failed to fetch update info from server."));
                 }
             } catch (Exception e) {
-                mainHandler.post(() -> callback.onError("Update check error: " + e.getLocalizedMessage()));
+                e.printStackTrace();
+                mainHandler.post(() -> callback.onError("Update check unavailable. Please try again later."));
             }
         });
     }
@@ -370,16 +397,17 @@ public class ApiClient {
                     JSONObject resObj = new JSONObject(responseStr);
                     if (resObj.optString("status", "").equals("success") || resObj.has("message")) {
                         String msg = resObj.optString("message", "Report submitted successfully!");
-                        mainHandler.post(() -> callback.onSuccess(msg));
+                        mainHandler.post(() -> callback.onSuccess(SecurityUtils.sanitizeForUI(msg)));
                     } else {
-                        String msg = resObj.optString("message", "Failed to submit report.");
-                        mainHandler.post(() -> callback.onError(msg));
+                        String msg = resObj.optString("message", "Failed to submit report. Please try again.");
+                        mainHandler.post(() -> callback.onError(SecurityUtils.sanitizeForUI(msg)));
                     }
                 } else {
-                    mainHandler.post(() -> callback.onError("Server connection error: Unable to send report to server."));
+                    mainHandler.post(() -> callback.onError("Unable to send report to server. Please try again later."));
                 }
             } catch (Exception e) {
-                mainHandler.post(() -> callback.onError("Server error: " + e.getLocalizedMessage()));
+                e.printStackTrace();
+                mainHandler.post(() -> callback.onError("Failed to submit report. Please try again later."));
             }
         });
     }

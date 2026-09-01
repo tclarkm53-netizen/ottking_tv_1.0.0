@@ -129,4 +129,54 @@ public class SecurityUtils {
     public static String decryptAes(String base64Text, String key) {
         return decryptAesGcm(base64Text, key);
     }
+
+    /**
+     * Sanitizes any message to ensure NO server URLs, hostnames, IP addresses,
+     * or backend infrastructure details are ever printed in the UI.
+     */
+    public static String sanitizeForUI(String message) {
+        if (message == null || message.trim().isEmpty()) {
+            return "Unable to complete request. Please try again.";
+        }
+        
+        String lower = message.toLowerCase(Locale.US);
+        
+        // Detect connection/network/host related raw exceptions
+        if (lower.contains("unknownhost") || lower.contains("unable to resolve host") 
+                || lower.contains("no address associated") || lower.contains("connectexception")
+                || lower.contains("failed to connect") || lower.contains("connection refused")
+                || lower.contains("sockettimeoutexception") || lower.contains("timeout")
+                || lower.contains("sslhandshake") || lower.contains("certpathvalidator")
+                || lower.contains("route to host") || lower.contains("network is unreachable")) {
+            return "Unable to connect to service. Please check your internet connection and try again.";
+        }
+
+        if (lower.contains("http 500") || lower.contains("http 502") || lower.contains("http 503") || lower.contains("http 504")
+                || lower.contains("server error") || lower.contains("internal server error")) {
+            return "Server is temporarily unavailable. Please try again later.";
+        }
+
+        // Clean out any URLs (http://, https://, ftp://)
+        String cleaned = message.replaceAll("(?i)https?://[^\\s/$.?#].[^\\s]*", "[Server]");
+        // Clean out domain names with extensions (.net, .com, .org, .io, .xyz, etc.)
+        cleaned = cleaned.replaceAll("(?i)[a-zA-Z0-9.-]+\\.(net|com|org|io|app|tv|xyz|co|uk|de|online|site|space|cloud)(:\\d+)?", "[Server]");
+        // Clean out IPv4 addresses with optional ports
+        cleaned = cleaned.replaceAll("\\b\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}(:\\d+)?\\b", "[Server]");
+        // Clean out specific Config.BaseUrl if any remnants remain
+        if (Config.BaseUrl != null && !Config.BaseUrl.isEmpty()) {
+            cleaned = cleaned.replace(Config.BaseUrl, "");
+        }
+        
+        cleaned = cleaned.trim();
+        if (cleaned.isEmpty() || cleaned.equals("[Server]")) {
+            return "Unable to connect to server. Please try again.";
+        }
+
+        return cleaned;
+    }
+
+    public static String sanitizeException(Throwable t) {
+        if (t == null) return "An unexpected error occurred. Please try again.";
+        return sanitizeForUI(t.getLocalizedMessage() != null ? t.getLocalizedMessage() : t.getMessage());
+    }
 }
