@@ -29,6 +29,7 @@ import android.net.NetworkRequest;
 import android.os.Build;
 import android.graphics.Color;
 
+import android.app.Dialog;
 import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -45,6 +46,7 @@ import com.ottking.devcode.db.AppDatabase;
 import com.ottking.devcode.db.CategoryEntity;
 import com.ottking.devcode.db.ChannelEntity;
 import com.ottking.devcode.network.DataPollingManager;
+import com.ottking.devcode.preferences.AppPreferences;
 import com.ottking.devcode.utils.NetworkUtils;
 
 import java.util.ArrayList;
@@ -349,7 +351,7 @@ public class MainActivity extends AppCompatActivity {
             FocusManager.getInstance().saveHomeCategoryFocus(catId, pos, view);
             FocusManager.getInstance().saveFocus(this, SCREEN_KEY, view);
         });
-        categoryAdapter.setCategories(com.ottking.devcode.network.ApiClient.getDefaultCategories());
+        categoryAdapter.setCategories(new ArrayList<>());
         recyclerCategories.setAdapter(categoryAdapter);
 
         // Channels Grid Layout (exactly 5 columns)
@@ -402,7 +404,6 @@ public class MainActivity extends AppCompatActivity {
             }
         });
         allChannels.clear();
-        allChannels.addAll(com.ottking.devcode.network.ApiClient.getDefaultChannels());
         channelAdapter.setAllChannelsList(allChannels);
         recyclerChannels.setAdapter(channelAdapter);
         filterChannels();
@@ -690,9 +691,8 @@ public class MainActivity extends AppCompatActivity {
                 if (wasEmpty || isInitialLaunch) {
                     recyclerCategories.post(this::focusFirstCategoryItem);
                 }
-            } else if (categoryAdapter.getItemCount() == 0) {
-                categoryAdapter.setCategories(com.ottking.devcode.network.ApiClient.getDefaultCategories());
-                recyclerCategories.post(this::focusFirstCategoryItem);
+            } else {
+                categoryAdapter.setCategories(new ArrayList<>());
             }
         });
 
@@ -702,8 +702,8 @@ public class MainActivity extends AppCompatActivity {
                 allChannels.addAll(channels);
                 channelAdapter.setAllChannelsList(allChannels);
                 filterChannels();
-            } else if (allChannels.isEmpty()) {
-                allChannels.addAll(com.ottking.devcode.network.ApiClient.getDefaultChannels());
+            } else {
+                allChannels.clear();
                 channelAdapter.setAllChannelsList(allChannels);
                 filterChannels();
             }
@@ -976,10 +976,61 @@ public class MainActivity extends AppCompatActivity {
         restoreActiveFocus();
     }
 
+    private Dialog maintenanceDialog;
+
+    private void checkAndHandleMaintenanceMode() {
+        AppPreferences prefs = AppPreferences.getInstance(this);
+        if (prefs.isMaintenanceActive()) {
+            if (maintenanceDialog == null || !maintenanceDialog.isShowing()) {
+                allChannels.clear();
+                if (channelAdapter != null) {
+                    channelAdapter.setAllChannelsList(allChannels);
+                    channelAdapter.notifyDataSetChanged();
+                }
+                String msg = prefs.getMaintenanceMessage();
+                if (msg == null || msg.trim().isEmpty()) {
+                    msg = "সার্ভার বর্তমানে মেইনটেনেন্স মোডে আছে। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।";
+                }
+                maintenanceDialog = new CustomDialog.Builder(this)
+                        .setTitle("সার্ভার মেইনটেনেন্স (Server Maintenance)")
+                        .setMessage(msg)
+                        .setCancelable(false)
+                        .setPositiveButton("পুনরায় চেষ্টা করুন (Retry)", d -> {
+                            d.dismiss();
+                            maintenanceDialog = null;
+                            com.ottking.devcode.network.ApiClient.getInstance(MainActivity.this).syncCategoriesAndChannels(new com.ottking.devcode.network.ApiClient.ApiCallback<Boolean>() {
+                                @Override
+                                public void onSuccess(Boolean result) {
+                                    Toast.makeText(MainActivity.this, "সার্ভার অনলাইন!", Toast.LENGTH_SHORT).show();
+                                    checkAndHandleMaintenanceMode();
+                                }
+
+                                @Override
+                                public void onError(String errorMessage) {
+                                    checkAndHandleMaintenanceMode();
+                                }
+                            });
+                        })
+                        .setNegativeButton("অ্যাপ বন্ধ করুন (Exit)", d -> {
+                            d.dismiss();
+                            finishAffinity();
+                            System.exit(0);
+                        })
+                        .show();
+            }
+        } else {
+            if (maintenanceDialog != null && maintenanceDialog.isShowing()) {
+                maintenanceDialog.dismiss();
+                maintenanceDialog = null;
+            }
+        }
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
         UIUtils.hideSystemUI(this);
+        checkAndHandleMaintenanceMode();
         updateNotificationBadge();
         filterChannels();
         

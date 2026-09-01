@@ -4,12 +4,12 @@ import android.content.Context;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 
 import com.ottking.devcode.db.AppDatabase;
 import com.ottking.devcode.db.CategoryEntity;
 import com.ottking.devcode.db.ChannelEntity;
-import com.ottking.devcode.model.Category;
-import com.ottking.devcode.model.Channel;
+import com.ottking.devcode.model.NotificationItem;
 import com.ottking.devcode.model.StreamTokenAuth;
 import com.ottking.devcode.model.UpdateInfo;
 import com.ottking.devcode.model.UserInfo;
@@ -20,11 +20,6 @@ import com.ottking.devcode.utils.NetworkUtils;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -34,15 +29,26 @@ import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import okhttp3.ResponseBody;
+import retrofit2.Call;
+import retrofit2.Response;
+
+/**
+ * ApiClient powered by Retrofit with connection pooling, encrypted payload handling,
+ * and high-availability SQLite synchronization.
+ */
 public class ApiClient {
 
+    private static final String TAG = "ApiClient";
     private static ApiClient instance;
     private final Context context;
+    private final RetrofitClient retrofitClient;
     private final ExecutorService executor = Executors.newFixedThreadPool(4);
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     private ApiClient(Context context) {
         this.context = context.getApplicationContext();
+        this.retrofitClient = RetrofitClient.getInstance(this.context);
     }
 
     public static synchronized ApiClient getInstance(Context context) {
@@ -58,29 +64,48 @@ public class ApiClient {
     }
 
     public static List<CategoryEntity> getDefaultCategories() {
-        List<CategoryEntity> list = new ArrayList<>();
-        list.add(new CategoryEntity(1, "All Channels", "ic_tv"));
-        list.add(new CategoryEntity(2, "News Live", "ic_tv"));
-        list.add(new CategoryEntity(3, "Sports Live", "ic_tv"));
-        list.add(new CategoryEntity(4, "Entertainment", "ic_tv"));
-        list.add(new CategoryEntity(5, "Movies & Series", "ic_tv"));
-        list.add(new CategoryEntity(6, "Music TV", "ic_tv"));
-        return list;
+        return new ArrayList<>();
     }
 
     public static List<ChannelEntity> getDefaultChannels() {
-        List<ChannelEntity> list = new ArrayList<>();
-        list.add(new ChannelEntity(1, "Somoy TV Live", "https://i.ibb.co/L5Q0J6q/somoy.png", "https://live.bdix.tv/live/somoy/playlist.m3u8", 2, false, "hls"));
-        list.add(new ChannelEntity(2, "Jamuna TV Live", "https://i.ibb.co/4p5Y7yN/jamuna.png", "https://live.bdix.tv/live/jamuna/playlist.m3u8", 2, false, "hls"));
-        list.add(new ChannelEntity(3, "T Sports Live HD", "https://i.ibb.co/XzVq0qW/tsports.png", "https://live.bdix.tv/live/tsports/playlist.m3u8", 3, false, "hls"));
-        list.add(new ChannelEntity(4, "GTV Sports Live", "https://i.ibb.co/P4Jp8g7/gtv.png", "https://live.bdix.tv/live/gtv/playlist.m3u8", 3, false, "hls"));
-        list.add(new ChannelEntity(5, "Channel 24 Live", "https://i.ibb.co/KjqfH0Y/channel24.png", "https://live.bdix.tv/live/channel24/playlist.m3u8", 2, false, "hls"));
-        list.add(new ChannelEntity(6, "Bongo Cinema HD", "https://i.ibb.co/7XgW99T/bongocinema.png", "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8", 5, false, "hls"));
-        list.add(new ChannelEntity(7, "NTV Bangladesh Live", "https://i.ibb.co/0VpLh0p/ntv.png", "https://live.bdix.tv/live/ntv/playlist.m3u8", 4, false, "hls"));
-        list.add(new ChannelEntity(8, "Music Bangladesh HD", "https://i.ibb.co/2vB5nK1/music.png", "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8", 6, false, "hls"));
-        return list;
+        return new ArrayList<>();
     }
 
+    /**
+     * Checks if a JSON response indicates server maintenance mode.
+     */
+    private boolean isMaintenanceResponse(JSONObject json) {
+        if (json == null) return false;
+        String status = json.optString("status", "").toLowerCase(Locale.US);
+        if ("maintenance".equals(status) || "maintenance_mode".equals(status) || "under_maintenance".equals(status)) {
+            return true;
+        }
+        if (json.optBoolean("is_maintenance", false) || json.optBoolean("maintenance", false)) {
+            return true;
+        }
+        if (json.optInt("is_maintenance", 0) == 1 || json.optInt("maintenance", 0) == 1) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Extracts maintenance message or provides a sensible default.
+     */
+    private String extractMaintenanceMessage(JSONObject json) {
+        if (json != null) {
+            String msg = json.optString("message", "");
+            if (msg.isEmpty()) msg = json.optString("msg", "");
+            if (msg.isEmpty()) msg = json.optString("error", "");
+            if (msg.isEmpty()) msg = json.optString("detail", "");
+            if (!msg.isEmpty()) return msg;
+        }
+        return "সার্ভার বর্তমানে মেইনটেনেন্স মোডে আছে। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।";
+    }
+
+    /**
+     * Synchronizes categories and channels via Retrofit.
+     */
     public void syncCategoriesAndChannels(final ApiCallback<Boolean> callback) {
         executor.execute(() -> {
             try {
@@ -90,9 +115,6 @@ public class ApiClient {
                 }
 
                 AppPreferences prefs = AppPreferences.getInstance(context);
-                String baseUrl = SecurityUtils.DEBUG_API_URL;
-                
-                // Real-time local date expiry check
                 boolean isSubActive = NetworkUtils.isSubscriptionActive(context);
                 String sessionToken = isSubActive ? prefs.getSessionToken() : "";
 
@@ -100,22 +122,28 @@ public class ApiClient {
                 List<ChannelEntity> chanEntities = new ArrayList<>();
                 boolean serverSuccess = false;
                 String serverErrorMessage = null;
+                boolean isMaintenance = false;
+                String maintenanceMsg = null;
 
                 try {
-                    // Fetch Categories
-                    String catUrlStr = baseUrl + "categories.php";
-                    String catJsonStr = executeHttpGet(catUrlStr);
+                    // 1. Fetch Categories via Retrofit ApiService
+                    Call<ResponseBody> catCall = retrofitClient.getApiService().getCategories(SecurityUtils.getApiKey());
+                    Response<ResponseBody> catResponse = catCall.execute();
+                    String catJsonStr = RetrofitClient.extractAndDecryptResponse(catResponse);
 
                     if (catJsonStr != null) {
                         JSONObject catObj = new JSONObject(catJsonStr);
-                        if (catObj.optString("status").equals("success")) {
+                        if (isMaintenanceResponse(catObj)) {
+                            isMaintenance = true;
+                            maintenanceMsg = extractMaintenanceMessage(catObj);
+                        } else if ("success".equalsIgnoreCase(catObj.optString("status", "")) || catObj.has("categories")) {
                             JSONArray catArray = catObj.optJSONArray("categories");
                             if (catArray != null) {
                                 for (int i = 0; i < catArray.length(); i++) {
                                     JSONObject item = catArray.getJSONObject(i);
                                     int catId = item.optInt("id", item.optInt("category_id", item.optInt("cat_id", i + 1)));
                                     String catName = item.optString("name", item.optString("category_name", item.optString("title", "Category " + catId)));
-                                    
+
                                     String catIcon = "";
                                     if (item.has("icon") && !item.isNull("icon")) {
                                         catIcon = item.optString("icon", "").trim();
@@ -148,48 +176,66 @@ public class ApiClient {
                         }
                     }
 
-                    // Fetch Channels with live session token
-                    String chanUrlStr = baseUrl + "channels.php?session_token=" + sessionToken;
-                    String chanJsonStr = executeHttpGet(chanUrlStr);
+                    // 2. Fetch Channels via Retrofit ApiService (if not already detected maintenance)
+                    if (!isMaintenance) {
+                        Call<ResponseBody> chanCall = retrofitClient.getApiService().getChannels(sessionToken, SecurityUtils.getApiKey());
+                        Response<ResponseBody> chanResponse = chanCall.execute();
+                        String chanJsonStr = RetrofitClient.extractAndDecryptResponse(chanResponse);
 
-                    if (chanJsonStr != null) {
-                        JSONObject chanObj = new JSONObject(chanJsonStr);
-                        if (chanObj.optString("status").equals("success")) {
-                            JSONArray chanArray = chanObj.optJSONArray("channels");
-                            if (chanArray != null) {
-                                for (int i = 0; i < chanArray.length(); i++) {
-                                    JSONObject item = chanArray.getJSONObject(i);
-                                    boolean isPremium = item.optInt("is_premium", 0) == 1;
-                                    
-                                    // If subscription has expired and channel is strictly premium hidden by server, skip
-                                    if (!isSubActive && isPremium) {
-                                        continue;
+                        if (chanJsonStr != null) {
+                            JSONObject chanObj = new JSONObject(chanJsonStr);
+                            if (isMaintenanceResponse(chanObj)) {
+                                isMaintenance = true;
+                                maintenanceMsg = extractMaintenanceMessage(chanObj);
+                            } else if ("success".equalsIgnoreCase(chanObj.optString("status", "")) || chanObj.has("channels")) {
+                                JSONArray chanArray = chanObj.optJSONArray("channels");
+                                if (chanArray != null) {
+                                    for (int i = 0; i < chanArray.length(); i++) {
+                                        JSONObject item = chanArray.getJSONObject(i);
+                                        boolean isPremium = item.optInt("is_premium", 0) == 1;
+
+                                        if (!isSubActive && isPremium) {
+                                            continue;
+                                        }
+
+                                        chanEntities.add(new ChannelEntity(
+                                                item.getInt("id"),
+                                                item.getString("name"),
+                                                item.optString("logo_url"),
+                                                item.getString("stream_url"),
+                                                item.getInt("category_id"),
+                                                isPremium,
+                                                item.optString("stream_type", "hls")
+                                        ));
                                     }
-
-                                    chanEntities.add(new ChannelEntity(
-                                            item.getInt("id"),
-                                            item.getString("name"),
-                                            item.optString("logo_url"),
-                                            item.getString("stream_url"),
-                                            item.getInt("category_id"),
-                                            isPremium,
-                                            item.optString("stream_type", "hls")
-                                    ));
                                 }
                             }
                         }
                     }
 
-                    serverSuccess = (!catEntities.isEmpty() || !chanEntities.isEmpty());
+                    serverSuccess = !isMaintenance && (!catEntities.isEmpty() || !chanEntities.isEmpty());
                 } catch (Exception netEx) {
-                    netEx.printStackTrace();
+                    Log.e(TAG, "Network error during sync: " + netEx.getMessage(), netEx);
                     serverErrorMessage = netEx.getLocalizedMessage();
                     serverSuccess = false;
                 }
 
                 AppDatabase db = AppDatabase.getInstance(context);
 
+                if (isMaintenance) {
+                    // When server maintenance is active, purge local channels/categories and record maintenance mode
+                    final String msg = (maintenanceMsg != null && !maintenanceMsg.isEmpty()) ? maintenanceMsg : "সার্ভার বর্তমানে মেইনটেনেন্স মোডে আছে। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।";
+                    prefs.setMaintenanceMode(true, msg);
+                    try {
+                        db.categoryDao().deleteAll();
+                        db.channelDao().deleteAll();
+                    } catch (Exception ignored) {}
+                    mainHandler.post(() -> callback.onError("MAINTENANCE:" + msg));
+                    return;
+                }
+
                 if (serverSuccess && (!catEntities.isEmpty() || !chanEntities.isEmpty())) {
+                    prefs.setMaintenanceMode(false, "");
                     if (!catEntities.isEmpty()) {
                         db.categoryDao().deleteAll();
                         db.categoryDao().insertAll(catEntities);
@@ -208,12 +254,15 @@ public class ApiClient {
                     mainHandler.post(() -> callback.onError(finalErr));
                 }
             } catch (Exception e) {
-                e.printStackTrace();
+                Log.e(TAG, "Sync exception", e);
                 mainHandler.post(() -> callback.onError(context.getString(com.ottking.devcode.R.string.net_error_server_error_format)));
             }
         });
     }
 
+    /**
+     * User Login via Retrofit with AES-256-GCM encryption & HMAC verification.
+     */
     public void login(String username, String password, ApiCallback<UserInfo> callback) {
         executor.execute(() -> {
             try {
@@ -223,18 +272,42 @@ public class ApiClient {
                 body.put("password", password);
                 body.put("device_id", prefs.getDeviceId());
 
-                String responseStr = executeHttpPost(SecurityUtils.DEBUG_API_URL + "login.php", body.toString());
+                RetrofitClient.EncryptedRequest encryptedReq = RetrofitClient.prepareEncryptedRequest(body.toString());
+
+                Call<ResponseBody> call = retrofitClient.getApiService().login(
+                        encryptedReq.requestBody,
+                        SecurityUtils.getApiKey(),
+                        encryptedReq.signature
+                );
+
+                Response<ResponseBody> response = call.execute();
+                String responseStr = RetrofitClient.extractAndDecryptResponse(response);
+
                 if (responseStr != null) {
                     JSONObject resObj = new JSONObject(responseStr);
-                    if (resObj.optString("status").equals("success")) {
-                        String token = resObj.getString("session_token");
-                        JSONObject userObj = resObj.getJSONObject("user_info");
+
+                    if (isMaintenanceResponse(resObj)) {
+                        String mMsg = extractMaintenanceMessage(resObj);
+                        prefs.setMaintenanceMode(true, mMsg);
+                        mainHandler.post(() -> callback.onError("MAINTENANCE:" + mMsg));
+                        return;
+                    }
+
+                    String status = resObj.optString("status", "");
+                    boolean isSuccess = "success".equalsIgnoreCase(status) || resObj.optBoolean("success", false);
+
+                    if (isSuccess) {
+                        String token = resObj.optString("session_token", resObj.optString("token", ""));
+                        JSONObject userObj = resObj.optJSONObject("user_info");
+                        if (userObj == null) {
+                            userObj = resObj;
+                        }
 
                         UserInfo info = new UserInfo(
-                                userObj.getString("username"),
-                                userObj.getString("package"),
-                                userObj.getString("expiry_date"),
-                                userObj.getString("device_id")
+                                userObj.optString("username", username),
+                                userObj.optString("package", userObj.optString("subscription", "Standard VIP")),
+                                userObj.optString("expiry_date", userObj.optString("expiry", "Active")),
+                                userObj.optString("device_id", prefs.getDeviceId())
                         );
 
                         prefs.setSessionToken(token);
@@ -252,19 +325,31 @@ public class ApiClient {
 
                         mainHandler.post(() -> callback.onSuccess(info));
                     } else {
-                        String msg = resObj.optString("message", "Login failed. Please check your credentials.");
-                        mainHandler.post(() -> callback.onError(SecurityUtils.sanitizeForUI(msg)));
+                        // Extract real server response message (e.g. wrong password, already logged in on other device, device limit reached, etc.)
+                        String msg = resObj.optString("message", "");
+                        if (msg.isEmpty()) msg = resObj.optString("error", "");
+                        if (msg.isEmpty()) msg = resObj.optString("msg", "");
+                        if (msg.isEmpty()) msg = resObj.optString("detail", "");
+                        if (msg.isEmpty()) msg = resObj.optString("reason", "");
+                        if (msg.isEmpty()) {
+                            msg = "লগইন ব্যর্থ হয়েছে! ইউজারনেম বা পাসওয়ার্ড সঠিক কিনা পরীক্ষা করুন।";
+                        }
+                        final String finalMsg = msg;
+                        mainHandler.post(() -> callback.onError(finalMsg));
                     }
                 } else {
-                    mainHandler.post(() -> callback.onError("Unable to connect to server. Please try again."));
+                    mainHandler.post(() -> callback.onError("সার্ভারের সাথে সংযোগ স্থাপন করা সম্ভব হয়নি। অনুগ্রহ করে ইন্টারনেট কানেকশন চেক করুন।"));
                 }
             } catch (Exception e) {
-                e.printStackTrace();
-                mainHandler.post(() -> callback.onError("Login failed. Please try again."));
+                Log.e(TAG, "Login exception", e);
+                mainHandler.post(() -> callback.onError("লগইন রিকোয়েস্টে ত্রুটি: " + e.getLocalizedMessage()));
             }
         });
     }
 
+    /**
+     * User Logout via Retrofit.
+     */
     public void logout(ApiCallback<String> callback) {
         executor.execute(() -> {
             try {
@@ -278,7 +363,16 @@ public class ApiClient {
                 body.put("device_id", deviceId);
                 body.put("username", username);
 
-                String responseStr = executeHttpPost(SecurityUtils.DEBUG_API_URL + "logout.php", body.toString());
+                RetrofitClient.EncryptedRequest encryptedReq = RetrofitClient.prepareEncryptedRequest(body.toString());
+
+                Call<ResponseBody> call = retrofitClient.getApiService().logout(
+                        encryptedReq.requestBody,
+                        SecurityUtils.getApiKey(),
+                        encryptedReq.signature
+                );
+
+                Response<ResponseBody> response = call.execute();
+                String responseStr = RetrofitClient.extractAndDecryptResponse(response);
 
                 prefs.logout();
 
@@ -304,6 +398,9 @@ public class ApiClient {
         });
     }
 
+    /**
+     * Check App Updates via Retrofit.
+     */
     public void checkAppUpdate(ApiCallback<UpdateInfo> callback) {
         executor.execute(() -> {
             try {
@@ -321,13 +418,17 @@ public class ApiClient {
                     }
                 } catch (Exception ignored) {}
 
-                String encodedVersionName = java.net.URLEncoder.encode(currentVersionName, "UTF-8");
-                String urlStr = SecurityUtils.getApiUrl() + "update-app.php?version_code=" + currentVersionCode 
-                        + "&version_name=" + encodedVersionName
-                        + "&build_version=" + currentVersionCode
-                        + "&app_version=" + encodedVersionName;
+                Call<ResponseBody> call = retrofitClient.getApiService().checkUpdate(
+                        currentVersionCode,
+                        currentVersionName,
+                        currentVersionCode,
+                        currentVersionName,
+                        SecurityUtils.getApiKey()
+                );
 
-                String responseStr = executeHttpGet(urlStr);
+                Response<ResponseBody> response = call.execute();
+                String responseStr = RetrofitClient.extractAndDecryptResponse(response);
+
                 if (responseStr != null) {
                     JSONObject obj = new JSONObject(responseStr);
                     int serverVersionCode = obj.optInt("version_code", currentVersionCode);
@@ -342,7 +443,7 @@ public class ApiClient {
 
                     String updateUrl = obj.optString("update_url", SecurityUtils.getApiUrl() + "app-release.apk");
                     if (updateUrl.isEmpty()) updateUrl = SecurityUtils.getApiUrl() + "app-release.apk";
-                    
+
                     String serverChangelog = obj.optString("changelog", "");
                     if (serverChangelog.trim().isEmpty()) {
                         serverChangelog = "No changelog details provided by server.";
@@ -360,12 +461,15 @@ public class ApiClient {
                     mainHandler.post(() -> callback.onError("Failed to fetch update info from server."));
                 }
             } catch (Exception e) {
-                e.printStackTrace();
+                Log.e(TAG, "Update check exception", e);
                 mainHandler.post(() -> callback.onError("Update check unavailable. Please try again later."));
             }
         });
     }
 
+    /**
+     * Submit user problem report via Retrofit.
+     */
     public void submitReport(String category, String description, ApiCallback<String> callback) {
         executor.execute(() -> {
             try {
@@ -392,7 +496,17 @@ public class ApiClient {
                 body.put("sdk_api_version", sdkApiVersion);
                 body.put("device_info", deviceInfo.trim());
 
-                String responseStr = executeHttpPost(SecurityUtils.getApiUrl() + "submit-reports.php", body.toString());
+                RetrofitClient.EncryptedRequest encryptedReq = RetrofitClient.prepareEncryptedRequest(body.toString());
+
+                Call<ResponseBody> call = retrofitClient.getApiService().submitReport(
+                        encryptedReq.requestBody,
+                        SecurityUtils.getApiKey(),
+                        encryptedReq.signature
+                );
+
+                Response<ResponseBody> response = call.execute();
+                String responseStr = RetrofitClient.extractAndDecryptResponse(response);
+
                 if (responseStr != null) {
                     JSONObject resObj = new JSONObject(responseStr);
                     if (resObj.optString("status", "").equals("success") || resObj.has("message")) {
@@ -406,15 +520,14 @@ public class ApiClient {
                     mainHandler.post(() -> callback.onError("Unable to send report to server. Please try again later."));
                 }
             } catch (Exception e) {
-                e.printStackTrace();
+                Log.e(TAG, "Report submit exception", e);
                 mainHandler.post(() -> callback.onError("Failed to submit report. Please try again later."));
             }
         });
     }
 
     /**
-     * Requests authenticated stream token from server endpoint (stream-token.php).
-     * Verifies X-App-Client, user session, device binding, and issues signed stream token.
+     * Requests authenticated stream token from server endpoint (stream-token.php) via Retrofit.
      */
     public void fetchStreamToken(int channelId, String streamUrl, ApiCallback<StreamTokenAuth> callback) {
         executor.execute(() -> {
@@ -434,8 +547,16 @@ public class ApiClient {
                 body.put("app_client", appClient);
                 body.put("timestamp", System.currentTimeMillis() / 1000);
 
-                String endpoint = SecurityUtils.getApiUrl() + "stream-token.php";
-                String responseStr = executeHttpPost(endpoint, body.toString());
+                RetrofitClient.EncryptedRequest encryptedReq = RetrofitClient.prepareEncryptedRequest(body.toString());
+
+                Call<ResponseBody> call = retrofitClient.getApiService().fetchStreamToken(
+                        encryptedReq.requestBody,
+                        SecurityUtils.getApiKey(),
+                        encryptedReq.signature
+                );
+
+                Response<ResponseBody> response = call.execute();
+                String responseStr = RetrofitClient.extractAndDecryptResponse(response);
 
                 if (responseStr != null) {
                     JSONObject resObj = new JSONObject(responseStr);
@@ -475,6 +596,9 @@ public class ApiClient {
         });
     }
 
+    /**
+     * Local cryptographic token generator for instantaneous zero-latency playback startup.
+     */
     public StreamTokenAuth generateLocalStreamToken(int channelId, String streamUrl) {
         AppPreferences prefs = AppPreferences.getInstance(context);
         String sessionToken = prefs.getSessionToken();
@@ -497,110 +621,61 @@ public class ApiClient {
         );
     }
 
-    private String executeHttpGet(String urlStr) throws Exception {
-        URL url = new URL(urlStr);
-        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-        conn.setRequestMethod("GET");
-        conn.setConnectTimeout(6000);
-        conn.setReadTimeout(6000);
-        conn.setRequestProperty("X-Api-Key", SecurityUtils.getApiKey());
+    /**
+     * Real-time stream tracking (start, heartbeat, stop).
+     */
+    public void sendStreamTracking(String action, int channelId, String channelName, String streamUrl, String playerStatus, ApiCallback<String> callback) {
+        executor.execute(() -> {
+            try {
+                AppPreferences prefs = AppPreferences.getInstance(context);
+                String sessionToken = prefs.getSessionToken();
+                String deviceId = prefs.getDeviceId();
+                String username = prefs.getUsername();
 
-        int code = conn.getResponseCode();
-        if (code == 200) {
-            BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8));
-            StringBuilder sb = new StringBuilder();
-            String line;
-            while ((line = reader.readLine()) != null) {
-                sb.append(line);
-            }
-            reader.close();
-            return parseAndDecryptResponse(sb.toString());
-        }
-        return null;
-    }
+                JSONObject body = new JSONObject();
+                body.put("action", action != null ? action : "heartbeat");
+                body.put("channel_id", channelId);
+                body.put("channel_name", channelName != null ? channelName : "");
+                body.put("stream_url", streamUrl != null ? streamUrl : "");
+                body.put("player_status", playerStatus != null ? playerStatus : "playing");
+                body.put("device_id", deviceId != null ? deviceId : "");
+                body.put("username", username != null && !username.isEmpty() ? username : "Guest");
+                body.put("session_token", sessionToken != null ? sessionToken : "");
 
-    private String executeHttpPost(String urlStr, String jsonBody) throws Exception {
-        URL url = new URL(urlStr);
-        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-        conn.setRequestMethod("POST");
-        conn.setConnectTimeout(6000);
-        conn.setReadTimeout(6000);
-        conn.setDoOutput(true);
-        conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
-        conn.setRequestProperty("X-Api-Key", SecurityUtils.getApiKey());
+                RetrofitClient.EncryptedRequest encryptedReq = RetrofitClient.prepareEncryptedRequest(body.toString());
 
-        JSONObject requestObj = new JSONObject();
-        String encryptedPayload = SecurityUtils.encryptAesGcm(jsonBody, SecurityUtils.getEncryptionKey());
-        String signature = SecurityUtils.generateHmac(jsonBody, SecurityUtils.getHmacKey());
-        requestObj.put("encrypted_payload", encryptedPayload);
-        requestObj.put("signature", signature);
+                Call<ResponseBody> call = retrofitClient.getApiService().trackStream(
+                        encryptedReq.requestBody,
+                        SecurityUtils.getApiKey(),
+                        encryptedReq.signature
+                );
 
-        String postBody = requestObj.toString();
-        conn.setRequestProperty("X-Signature", signature);
+                Response<ResponseBody> response = call.execute();
+                String responseStr = RetrofitClient.extractAndDecryptResponse(response);
 
-        OutputStream os = conn.getOutputStream();
-        os.write(postBody.getBytes(StandardCharsets.UTF_8));
-        os.flush();
-        os.close();
-
-        int code = conn.getResponseCode();
-        if (code >= 200 && code < 300) {
-            BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8));
-            StringBuilder sb = new StringBuilder();
-            String line;
-            while ((line = reader.readLine()) != null) {
-                sb.append(line);
-            }
-            reader.close();
-            return parseAndDecryptResponse(sb.toString());
-        }
-        return null;
-    }
-
-    private String parseAndDecryptResponse(String rawResponse) {
-        if (rawResponse == null || rawResponse.trim().isEmpty()) {
-            return null;
-        }
-        try {
-            String trimmed = rawResponse.trim();
-            // Direct split payload check (base64Iv.base64Cipher)
-            if (trimmed.contains(".") && !trimmed.startsWith("{") && !trimmed.startsWith("[")) {
-                String decrypted = SecurityUtils.decryptAesGcm(trimmed, SecurityUtils.getEncryptionKey());
-                if (decrypted != null) {
-                    return decrypted;
-                }
-            }
-
-            if (trimmed.startsWith("{")) {
-                JSONObject json = new JSONObject(trimmed);
-                if (json.has("encrypted_payload")) {
-                    String encryptedPayload = json.getString("encrypted_payload");
-                    String signature = json.optString("signature", "");
-
-                    String decrypted = SecurityUtils.decryptAesGcm(encryptedPayload, SecurityUtils.getEncryptionKey());
-                    if (decrypted != null) {
-                        if (!signature.isEmpty()) {
-                            boolean isSignatureValid = SecurityUtils.verifySignature(decrypted, signature, SecurityUtils.getHmacKey())
-                                    || SecurityUtils.verifySignature(encryptedPayload, signature, SecurityUtils.getHmacKey());
-                            if (!isSignatureValid) {
-                                android.util.Log.e("ApiClient", "Invalid response HMAC signature!");
-                                return null;
-                            }
+                if (responseStr != null) {
+                    JSONObject resObj = new JSONObject(responseStr);
+                    if (resObj.optBoolean("is_maintenance", false) || "maintenance".equalsIgnoreCase(resObj.optString("status"))) {
+                        String msg = resObj.optString("message", "Maintenance mode active");
+                        prefs.setMaintenanceMode(true, msg);
+                        if (callback != null) {
+                            mainHandler.post(() -> callback.onError("MAINTENANCE:" + msg));
                         }
-                        return decrypted;
-                    } else {
-                        android.util.Log.e("ApiClient", "Failed to decrypt response payload!");
-                        return null;
+                        return;
                     }
-                } else if (json.has("status") || json.has("categories") || json.has("channels")) {
-                    // Unencrypted JSON response fallback
-                    return trimmed;
+                    if (callback != null) {
+                        mainHandler.post(() -> callback.onSuccess(responseStr));
+                    }
+                } else {
+                    if (callback != null) {
+                        mainHandler.post(() -> callback.onSuccess("ok"));
+                    }
+                }
+            } catch (Exception e) {
+                if (callback != null) {
+                    mainHandler.post(() -> callback.onError(e.getMessage()));
                 }
             }
-            return trimmed;
-        } catch (Exception e) {
-            android.util.Log.e("ApiClient", "Invalid response or parsing exception", e);
-            return null;
-        }
+        });
     }
 }

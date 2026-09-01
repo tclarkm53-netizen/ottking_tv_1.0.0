@@ -14,6 +14,8 @@ public class AppPreferences {
     private static final String KEY_EXPIRY = "user_expiry";
     private static final String KEY_DEVICE_ID = "device_id";
     private static final String KEY_LAST_PLAYED_CHANNEL = "last_played_channel_id";
+    private static final String KEY_MAINTENANCE_ACTIVE = "maintenance_active";
+    private static final String KEY_MAINTENANCE_MSG = "maintenance_message";
 
     private static AppPreferences instance;
     private final SharedPreferences prefs;
@@ -168,6 +170,21 @@ public class AppPreferences {
 
     public void setLastPlayedChannelId(int channelId) {
         prefs.edit().putInt(KEY_LAST_PLAYED_CHANNEL, channelId).apply();
+    }
+
+    public boolean isMaintenanceActive() {
+        return prefs.getBoolean(KEY_MAINTENANCE_ACTIVE, false);
+    }
+
+    public String getMaintenanceMessage() {
+        return prefs.getString(KEY_MAINTENANCE_MSG, "সার্ভার বর্তমানে মেইনটেনেন্স মোডে আছে। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।");
+    }
+
+    public void setMaintenanceMode(boolean active, String message) {
+        prefs.edit()
+                .putBoolean(KEY_MAINTENANCE_ACTIVE, active)
+                .putString(KEY_MAINTENANCE_MSG, message != null ? message : "")
+                .apply();
     }
 
     public void logout() {

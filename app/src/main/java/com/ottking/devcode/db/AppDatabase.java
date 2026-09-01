@@ -30,18 +30,6 @@ public abstract class AppDatabase extends RoomDatabase {
                             "ott_king_database"
                     )
                     .fallbackToDestructiveMigration()
-                    .addCallback(new RoomDatabase.Callback() {
-                        @Override
-                        public void onCreate(@NonNull SupportSQLiteDatabase db) {
-                            super.onCreate(db);
-                            Executors.newSingleThreadExecutor().execute(() -> {
-                                if (INSTANCE != null) {
-                                    INSTANCE.categoryDao().insertAll(ApiClient.getDefaultCategories());
-                                    INSTANCE.channelDao().insertAll(ApiClient.getDefaultChannels());
-                                }
-                            });
-                        }
-                    })
                     .build();
                 }
             }

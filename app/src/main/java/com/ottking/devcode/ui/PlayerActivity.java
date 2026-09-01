@@ -138,6 +138,13 @@ public class PlayerActivity extends AppCompatActivity {
 
     private final Handler bufferingWatchdogHandler = new Handler(Looper.getMainLooper());
     private Runnable bufferingWatchdogRunnable;
+    private final Handler streamWatchdogHandler = new Handler(Looper.getMainLooper());
+    private Runnable streamWatchdogRunnable;
+    private long lastObservedPositionMs = -1L;
+    private long lastObservedSystemTimeMs = 0L;
+    private int streamFreezeTicks = 0;
+    private int bufferingTicks = 0;
+    private int consecutiveRecoveries = 0;
     private ConnectivityManager.NetworkCallback networkCallback;
 
     private View cardChannelNumOverlay;
@@ -262,6 +269,7 @@ public class PlayerActivity extends AppCompatActivity {
         setupChannelDrawer();
         setupFocusGuard();
         registerNetworkCallback();
+        checkAndHandleMaintenanceMode();
 
         FocusManager.getInstance().setupBackPressHandler(this, SCREEN_KEY, this::handlePlayerBackPressInternal);
     }
@@ -624,10 +632,10 @@ public class PlayerActivity extends AppCompatActivity {
     private static synchronized OkHttpClient getOkHttpClient() {
         if (sharedOkHttpClient == null) {
             sharedOkHttpClient = new OkHttpClient.Builder()
-                    .connectionPool(new ConnectionPool(64, 5, TimeUnit.MINUTES))
-                    .connectTimeout(3, TimeUnit.SECONDS)
-                    .readTimeout(5, TimeUnit.SECONDS)
-                    .writeTimeout(3, TimeUnit.SECONDS)
+                    .connectionPool(new ConnectionPool(32, 5, TimeUnit.MINUTES))
+                    .connectTimeout(10, TimeUnit.SECONDS)
+                    .readTimeout(15, TimeUnit.SECONDS)
+                    .writeTimeout(10, TimeUnit.SECONDS)
                     .retryOnConnectionFailure(true)
                     .followRedirects(true)
                     .followSslRedirects(true)
@@ -699,10 +707,10 @@ public class PlayerActivity extends AppCompatActivity {
             renderersFactory.setAllowedVideoJoiningTimeMs(0); // Instant video track rendering without black frame delay
 
             String buf = prefs.getBufferSettings();
-            int minBufferMs = 1200;
-            int maxBufferMs = 3500;
-            int bufferForPlaybackMs = 25; // Instant ultra-fast startup (< 25ms threshold - plays immediately)
-            int bufferForPlaybackAfterRebufferMs = 100; // Ultra-fast rebuffer resume (< 100ms)
+            int minBufferMs = 2500;
+            int maxBufferMs = 8000;
+            int bufferForPlaybackMs = 150; // Smooth ultra-fast startup without freeze
+            int bufferForPlaybackAfterRebufferMs = 400; // Smooth rebuffer resume
 
             if (buf.contains("1.5 sec") || buf.contains("Fast Start")) {
                 minBufferMs = 2000;
@@ -754,7 +762,7 @@ public class PlayerActivity extends AppCompatActivity {
 
             bufferingWatchdogRunnable = () -> {
                 if (player != null && (player.getPlaybackState() == Player.STATE_BUFFERING || player.getPlaybackState() == Player.STATE_IDLE || player.getPlayerError() != null)) {
-                    retryPlayback("Stream connection stalled, auto reconnecting...");
+                    triggerStreamFreezeRecovery("Buffering timeout detected, auto-repreparing stream...");
                 }
             };
 
@@ -768,14 +776,16 @@ public class PlayerActivity extends AppCompatActivity {
                 public void onPlaybackStateChanged(int playbackState) {
                     bufferingWatchdogHandler.removeCallbacks(bufferingWatchdogRunnable);
                     if (playbackState == Player.STATE_BUFFERING) {
-                        bufferingWatchdogHandler.postDelayed(bufferingWatchdogRunnable, 8000);
+                        bufferingWatchdogHandler.postDelayed(bufferingWatchdogRunnable, 5000);
                     } else if (playbackState == Player.STATE_READY) {
                         retryCount = 0;
+                        bufferingTicks = 0;
+                        streamFreezeTicks = 0;
                         if (player != null && !player.isPlaying()) {
                             player.play();
                         }
                     } else if (playbackState == Player.STATE_ENDED) {
-                        retryPlayback("Stream disconnected, reconnecting...");
+                        triggerStreamFreezeRecovery("Live stream ended or lost source, reconnecting...");
                     }
                 }
 
@@ -789,7 +799,7 @@ public class PlayerActivity extends AppCompatActivity {
                             player.play();
                         }
                     } else {
-                        retryPlayback("Network lag / server error, retrying...");
+                        triggerStreamFreezeRecovery("Player error, auto-repreparing stream...");
                     }
                 }
             });
@@ -950,7 +960,13 @@ public class PlayerActivity extends AppCompatActivity {
         player.setPlayWhenReady(true);
         player.play();
 
-        // 3. Asynchronously request/verify stream token from backend endpoint
+        // 3. Start stream health polling watchdog to proactively detect and recover from freezes
+        startStreamWatchdog();
+
+        // 4. Start real-time server stream tracking heartbeat
+        startLiveTrackingHeartbeat();
+
+        // 5. Asynchronously request/verify stream token from backend endpoint
         ApiClient.getInstance(this).fetchStreamToken(currentChannelId, url, new ApiClient.ApiCallback<StreamTokenAuth>() {
             @Override
             public void onSuccess(StreamTokenAuth result) {
@@ -1890,18 +1906,34 @@ public class PlayerActivity extends AppCompatActivity {
             btnLogin.setOnClickListener(v -> {
                 String u = edtU.getText().toString().trim();
                 String p = edtP.getText().toString().trim();
+                if (u.isEmpty() || p.isEmpty()) {
+                    Toast.makeText(this, "Please enter username and password", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                btnLogin.setEnabled(false);
+                btnLogin.setText("Signing In...");
                 ApiClient.getInstance(this).login(u, p, new ApiClient.ApiCallback<UserInfo>() {
                     @Override
                     public void onSuccess(UserInfo result) {
+                        btnLogin.setEnabled(true);
+                        btnLogin.setText("Sign In");
+                        Toast.makeText(PlayerActivity.this, "Welcome " + result.getUsername() + "!", Toast.LENGTH_SHORT).show();
                         showPlayerSettingsDialog();
                     }
 
                     @Override
                     public void onError(String errorMessage) {
+                        btnLogin.setEnabled(true);
+                        btnLogin.setText("Sign In");
+                        if (errorMessage != null && errorMessage.startsWith("MAINTENANCE:")) {
+                            checkAndHandleMaintenanceMode();
+                            return;
+                        }
+                        String safeMsg = com.ottking.devcode.security.SecurityUtils.sanitizeForUI(errorMessage);
                         new CustomDialog.Builder(PlayerActivity.this)
-                                .setTitle("Login Error")
-                                .setMessage(errorMessage)
-                                .setPositiveButton("OK", d -> d.dismiss())
+                                .setTitle("লগইন ব্যর্থ হয়েছে (Login Failed)")
+                                .setMessage(safeMsg)
+                                .setPositiveButton(getString(R.string.btn_ok), d -> d.dismiss())
                                 .show();
                     }
                 });
@@ -1976,13 +2008,51 @@ public class PlayerActivity extends AppCompatActivity {
         handleBackPress();
     }
 
+    private android.app.Dialog maintenanceDialog;
+
+    private void checkAndHandleMaintenanceMode() {
+        if (prefs != null && prefs.isMaintenanceActive()) {
+            if (player != null) {
+                try {
+                    player.stop();
+                } catch (Throwable ignored) {}
+            }
+            if (maintenanceDialog == null || !maintenanceDialog.isShowing()) {
+                String msg = prefs.getMaintenanceMessage();
+                if (msg == null || msg.trim().isEmpty()) {
+                    msg = "সার্ভার বর্তমানে মেইনটেনেন্স মোডে আছে। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।";
+                }
+                maintenanceDialog = new CustomDialog.Builder(this)
+                        .setTitle("সার্ভার মেইনটেনেন্স (Server Maintenance)")
+                        .setMessage(msg)
+                        .setCancelable(false)
+                        .setPositiveButton("অ্যাপ বন্ধ করুন (Exit)", d -> {
+                            d.dismiss();
+                            maintenanceDialog = null;
+                            finish();
+                        })
+                        .show();
+            }
+        } else {
+            if (maintenanceDialog != null && maintenanceDialog.isShowing()) {
+                maintenanceDialog.dismiss();
+                maintenanceDialog = null;
+            }
+        }
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
         UIUtils.hideSystemUI(this);
+        checkAndHandleMaintenanceMode();
         applySavedPlayerSettings();
         if (player != null && !player.isPlaying()) {
             player.play();
+        }
+        if (currentStreamUrl != null && !currentStreamUrl.isEmpty()) {
+            startStreamWatchdog();
+            startLiveTrackingHeartbeat();
         }
         if (drawerChannelList != null && drawerChannelList.getVisibility() == View.VISIBLE) {
             if (recyclerPlayerChannels != null) {
@@ -2008,27 +2078,151 @@ public class PlayerActivity extends AppCompatActivity {
         }
     }
 
-    private void retryPlayback(String reason) {
-        if (isFinishing() || isDestroyed()) return;
-        retryHandler.removeCallbacksAndMessages(null);
+    /**
+     * Proactive Stream Health Watchdog: Periodically polls playback progress, detects frame/socket stalls,
+     * and automatically re-prepares the stream from freeze.
+     */
+    private void startStreamWatchdog() {
+        stopStreamWatchdog();
+        lastObservedPositionMs = -1L;
+        lastObservedSystemTimeMs = System.currentTimeMillis();
+        streamFreezeTicks = 0;
+        bufferingTicks = 0;
+        consecutiveRecoveries = 0;
 
-        if (retryCount < MAX_RETRY_COUNT) {
-            retryCount++;
-            long delay = Math.min(1000L * retryCount, 5000L);
-            retryHandler.postDelayed(() -> {
-                if (isFinishing() || isDestroyed()) return;
-                if (player != null && currentStreamUrl != null && !currentStreamUrl.isEmpty()) {
-                    player.setPlayWhenReady(true);
-                    player.prepare();
-                    player.play();
-                } else {
-                    playStream(currentStreamUrl);
+        streamWatchdogRunnable = new Runnable() {
+            @Override
+            public void run() {
+                if (isFinishing() || isDestroyed() || player == null) {
+                    return;
                 }
-            }, delay);
-        } else {
-            retryCount = 0;
-            retryHandler.postDelayed(() -> playStream(currentStreamUrl), 6000);
+
+                try {
+                    int state = player.getPlaybackState();
+                    boolean playWhenReady = player.getPlayWhenReady();
+                    long currentPos = player.getCurrentPosition();
+                    long now = System.currentTimeMillis();
+
+                    if (state == Player.STATE_BUFFERING) {
+                        bufferingTicks++;
+                        // If buffering hangs for >= 4.5 seconds (3 ticks @ 1.5s)
+                        if (bufferingTicks >= 3) {
+                            bufferingTicks = 0;
+                            triggerStreamFreezeRecovery("Buffering hang detected, auto-repreparing stream...");
+                        }
+                    } else if (state == Player.STATE_READY) {
+                        bufferingTicks = 0;
+                        if (playWhenReady) {
+                            if (lastObservedPositionMs != -1L) {
+                                long delta = Math.abs(currentPos - lastObservedPositionMs);
+                                long timeDelta = now - lastObservedSystemTimeMs;
+
+                                // If > 1200ms elapsed but position progressed less than 40ms, stream has frozen
+                                if (timeDelta >= 1200 && delta < 40) {
+                                    streamFreezeTicks++;
+                                    // Frozen for ~3 seconds (2 consecutive stalled ticks)
+                                    if (streamFreezeTicks >= 2) {
+                                        streamFreezeTicks = 0;
+                                        triggerStreamFreezeRecovery("Playback freeze detected, auto-repreparing stream...");
+                                    }
+                                } else {
+                                    streamFreezeTicks = 0;
+                                    consecutiveRecoveries = 0;
+                                }
+                            }
+                            lastObservedPositionMs = currentPos;
+                            lastObservedSystemTimeMs = now;
+                        } else {
+                            streamFreezeTicks = 0;
+                        }
+                    } else if (state == Player.STATE_IDLE || state == Player.STATE_ENDED) {
+                        bufferingTicks = 0;
+                        streamFreezeTicks = 0;
+                        triggerStreamFreezeRecovery("Stream disconnected, auto-reconnecting...");
+                    }
+                } catch (Throwable t) {
+                    android.util.Log.e("PlayerActivity", "Stream watchdog poll error", t);
+                }
+
+                if (!isFinishing() && !isDestroyed()) {
+                    streamWatchdogHandler.postDelayed(this, 1500L);
+                }
+            }
+        };
+
+        streamWatchdogHandler.postDelayed(streamWatchdogRunnable, 2000L);
+    }
+
+    private void stopStreamWatchdog() {
+        if (streamWatchdogRunnable != null) {
+            streamWatchdogHandler.removeCallbacks(streamWatchdogRunnable);
         }
+    }
+
+    /**
+     * Seamlessly recovers frozen stream by clearing stalled sockets,
+     * re-preparing player pipeline, or rebuilding fresh MediaSource.
+     */
+    private void triggerStreamFreezeRecovery(String reason) {
+        if (isFinishing() || isDestroyed() || currentStreamUrl == null || currentStreamUrl.trim().isEmpty()) {
+            return;
+        }
+
+        consecutiveRecoveries++;
+        android.util.Log.w("PlayerActivity", "Stream freeze recovery triggered (attempt " + consecutiveRecoveries + "): " + reason);
+
+        // 1. Evict any stalled TCP/HTTP sockets from connection pool
+        try {
+            if (sharedOkHttpClient != null && sharedOkHttpClient.connectionPool() != null) {
+                sharedOkHttpClient.connectionPool().evictAll();
+            }
+        } catch (Throwable ignored) {}
+
+        // 2. Multi-stage recovery
+        if (player != null) {
+            if (consecutiveRecoveries <= 1) {
+                // Tier 1: Seek to live default position & soft re-prepare
+                try {
+                    player.seekToDefaultPosition();
+                    player.prepare();
+                    player.setPlayWhenReady(true);
+                    player.play();
+                } catch (Throwable t) {
+                    reloadStreamMediaSource();
+                }
+            } else {
+                // Tier 2: Rebuild MediaSource with refreshed stream auth token
+                reloadStreamMediaSource();
+            }
+        } else {
+            initExoPlayer();
+        }
+
+        lastObservedPositionMs = -1L;
+        lastObservedSystemTimeMs = System.currentTimeMillis();
+        streamFreezeTicks = 0;
+        bufferingTicks = 0;
+    }
+
+    private void reloadStreamMediaSource() {
+        if (player == null || currentStreamUrl == null || currentStreamUrl.trim().isEmpty()) return;
+
+        try {
+            StreamTokenAuth localToken = ApiClient.getInstance(this).generateLocalStreamToken(currentChannelId, currentStreamUrl);
+            currentActiveStreamToken = localToken.getStreamToken();
+
+            MediaSource mediaSource = buildMediaSource(currentStreamUrl.trim());
+            player.setMediaSource(mediaSource, false);
+            player.prepare();
+            player.setPlayWhenReady(true);
+            player.play();
+        } catch (Throwable t) {
+            playStream(currentStreamUrl);
+        }
+    }
+
+    private void retryPlayback(String reason) {
+        triggerStreamFreezeRecovery(reason);
     }
 
     private void registerNetworkCallback() {
@@ -2043,7 +2237,7 @@ public class PlayerActivity extends AppCompatActivity {
                                 int state = player.getPlaybackState();
                                 if (state == Player.STATE_IDLE || state == Player.STATE_BUFFERING || player.getPlayerError() != null || !player.isPlaying()) {
                                     retryCount = 0;
-                                    retryPlayback("Network connected, resuming stream...");
+                                    triggerStreamFreezeRecovery("Network reconnected, resuming stream...");
                                 }
                             }
                         });
@@ -2070,9 +2264,100 @@ public class PlayerActivity extends AppCompatActivity {
         }
     }
 
+    // =========================================================================
+    // REAL-TIME SERVER STREAM TRACKING
+    // =========================================================================
+    private final Handler trackingHandler = new Handler(Looper.getMainLooper());
+    private Runnable trackingRunnable;
+
+    private void startLiveTrackingHeartbeat() {
+        stopLiveTrackingHeartbeat();
+
+        // Send immediate start / heartbeat ping
+        sendStreamTrackingPing("start");
+
+        // Schedule recurring heartbeat every 15 seconds
+        trackingRunnable = new Runnable() {
+            @Override
+            public void run() {
+                if (isFinishing() || isDestroyed()) return;
+                sendStreamTrackingPing("heartbeat");
+                if (!isFinishing() && !isDestroyed()) {
+                    trackingHandler.postDelayed(this, 15000L);
+                }
+            }
+        };
+        trackingHandler.postDelayed(trackingRunnable, 15000L);
+    }
+
+    private void stopLiveTrackingHeartbeat() {
+        if (trackingRunnable != null) {
+            trackingHandler.removeCallbacks(trackingRunnable);
+            trackingRunnable = null;
+        }
+    }
+
+    private void sendStreamTrackingPing(String action) {
+        if (currentChannelId <= 0 && (currentStreamUrl == null || currentStreamUrl.isEmpty())) {
+            return;
+        }
+
+        String playerStatus = "playing";
+        if (player != null) {
+            int state = player.getPlaybackState();
+            boolean playWhenReady = player.getPlayWhenReady();
+            if (state == Player.STATE_BUFFERING) {
+                playerStatus = "buffering";
+            } else if (state == Player.STATE_READY && !playWhenReady) {
+                playerStatus = "paused";
+            } else if (state == Player.STATE_IDLE || state == Player.STATE_ENDED) {
+                playerStatus = "stopped";
+            }
+        }
+
+        final String finalAction = action;
+        ApiClient.getInstance(this).sendStreamTracking(
+                finalAction,
+                currentChannelId,
+                currentChannelName,
+                currentStreamUrl,
+                playerStatus,
+                new ApiClient.ApiCallback<String>() {
+                    @Override
+                    public void onSuccess(String result) {
+                        // Stream successfully tracked
+                    }
+
+                    @Override
+                    public void onError(String errorMessage) {
+                        if (errorMessage != null && errorMessage.startsWith("MAINTENANCE:")) {
+                            checkAndHandleMaintenanceMode();
+                        }
+                    }
+                }
+        );
+    }
+
+    private void sendStreamStopTracking() {
+        stopLiveTrackingHeartbeat();
+        try {
+            ApiClient.getInstance(this).sendStreamTracking(
+                    "stop",
+                    currentChannelId,
+                    currentChannelName,
+                    currentStreamUrl,
+                    "stopped",
+                    null
+            );
+        } catch (Throwable ignored) {}
+    }
+
     @Override
     protected void onPause() {
         super.onPause();
+        stopStreamWatchdog();
+        stopLiveTrackingHeartbeat();
+        sendStreamTrackingPing("heartbeat");
         if (player != null) {
             player.pause();
         }
@@ -2084,12 +2369,20 @@ public class PlayerActivity extends AppCompatActivity {
         if (voiceSearchHelper != null) {
             voiceSearchHelper.destroy();
         }
+        stopStreamWatchdog();
+        sendStreamStopTracking();
         retryHandler.removeCallbacksAndMessages(null);
         if (bufferingWatchdogHandler != null) {
             bufferingWatchdogHandler.removeCallbacksAndMessages(null);
         }
+        if (streamWatchdogHandler != null) {
+            streamWatchdogHandler.removeCallbacksAndMessages(null);
+        }
         if (channelNumHandler != null) {
             channelNumHandler.removeCallbacksAndMessages(null);
+        }
+        if (trackingHandler != null) {
+            trackingHandler.removeCallbacksAndMessages(null);
         }
         unregisterNetworkCallback();
         if (player != null) {

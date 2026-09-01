@@ -146,10 +146,18 @@ public class SplashActivity extends AppCompatActivity {
 
             @Override
             public void onError(String errorMessage) {
-                showErrorState(
-                        getString(R.string.splash_error_server_title),
-                        getString(R.string.splash_error_server_msg)
-                );
+                if (errorMessage != null && errorMessage.startsWith("MAINTENANCE:")) {
+                    String cleanMsg = errorMessage.substring("MAINTENANCE:".length()).trim();
+                    showErrorState(
+                            "সার্ভার মেইনটেনেন্স (Server Maintenance)",
+                            cleanMsg.isEmpty() ? "সার্ভার বর্তমানে মেইনটেনেন্স মোডে আছে। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।" : cleanMsg
+                    );
+                } else {
+                    showErrorState(
+                            getString(R.string.splash_error_server_title),
+                            getString(R.string.splash_error_server_msg)
+                    );
+                }
             }
         });
     }
