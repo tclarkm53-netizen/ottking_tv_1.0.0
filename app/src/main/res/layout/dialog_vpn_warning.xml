@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_gravity="center"
+    android:layout_margin="24dp"
+    android:background="@drawable/bg_card_normal"
+    android:elevation="12dp"
+    android:orientation="vertical"
+    android:padding="20dp">
+
+    <!-- Header with Security Shield Icon -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginEnd="12dp"
+            android:contentDescription="Security Alert"
+            android:src="@drawable/ic_lock"
+            app:tint="@color/gold_primary" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="নিরাপত্তা সতর্কতা: VPN সনাক্ত হয়েছে"
+                android:textColor="@color/gold_primary"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="VPN or Proxy Connection Detected"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginTop="12dp"
+        android:layout_marginBottom="14dp"
+        android:background="@color/card_bg_stroke" />
+
+    <!-- Description Content -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:lineSpacingMultiplier="1.25"
+        android:text="অ্যাপ্লিকেশন ট্রাফিক ও সুরক্ষিত লাইভ স্ট্রিম সুরক্ষার জন্য OTT KING অ্যাপে VPN, প্রক্সি বা প্যাকেট ক্যাপচার টুল ব্যবহার সম্পূর্ণরূপে নিষিদ্ধ।\n\nঅনুগ্রহ করে আপনার ডিভাইসের সক্রিয় VPN বা প্রক্সি সংযোগটি বন্ধ করুন এবং 'পুনরায় চেষ্টা করুন' বাটনে চাপ দিন।"
+        android:textColor="@color/text_primary"
+        android:textSize="14sp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:text="Notice: To prevent stream interception, access is restricted while VPN is active. Please disconnect VPN to continue."
+        android:textColor="@color/text_secondary"
+        android:textSize="12sp"
+        android:textStyle="italic" />
+
+    <!-- Action Buttons -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="20dp"
+        android:gravity="end"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/btnVpnExit"
+            android:layout_width="wrap_content"
+            android:layout_height="44dp"
+            android:layout_marginEnd="10dp"
+            android:background="@drawable/selector_header_button"
+            android:focusable="true"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:text="অ্যাপ বন্ধ করুন"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp" />
+
+        <Button
+            android:id="@+id/btnVpnRetry"
+            android:layout_width="wrap_content"
+            android:layout_height="44dp"
+            android:background="@drawable/btn_retry_selector"
+            android:focusable="true"
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp"
+            android:text="পুনরায় চেষ্টা করুন"
+            android:textColor="@color/text_primary"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+</LinearLayout>

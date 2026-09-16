@@ -1,0 +1,6 @@
+{
+  "name": "OTT KING",
+  "description": "OTT KING - Premium Live TV & Streaming App with TV Remote focus support, real-time sync, and HLS/DASH ExoPlayer",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg_dark">#0B0A12</color>
+    <color name="bg_dark_translucent">#E00B0A12</color>
+    <color name="bg_sidebar">#13101C</color>
+    <color name="card_bg">#1B1728</color>
+    <color name="card_bg_stroke">#2A243E</color>
+    <color name="card_bg_focused">#1B1728</color>
+    
+    <!-- Modern Navy Blue TV Focus & Accent Colors -->
+    <color name="navy_primary">#2979FF</color>       <!-- Vibrant Electric Navy Blue Focus Border -->
+    <color name="navy_secondary">#448AFF</color>     <!-- Subtle Light Navy Blue Accent -->
+    <color name="navy_accent">#1565C0</color>        <!-- Deep Navy Accent -->
+    <color name="navy_active_bg">#142038</color>     <!-- Selected item background -->
+    <color name="navy_active_border">#1E3C72</color> <!-- Selected item subtle border -->
+
+    <!-- Theme & Highlights -->
+    <color name="gold_primary">#2979FF</color>
+    <color name="gold_secondary">#448AFF</color>
+    <color name="gold_light">#82B1FF</color>
+    <color name="gold_dark">#1565C0</color>
+    <color name="gold_focus_border">#2979FF</color>
+    <color name="gold_active_bg">#142038</color>
+    
+    <color name="text_on_primary">#FFFFFF</color>
+    <color name="text_primary">#FFFFFF</color>
+    <color name="text_secondary">#B3ACCD</color>
+    <color name="text_muted">#776F8E</color>
+    <color name="accent_red">#FF5252</color>
+    <color name="accent_green">#00E676</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+</resources>
