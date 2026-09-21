@@ -13,6 +13,7 @@ import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -72,11 +73,15 @@ public class MainActivity extends AppCompatActivity {
     private ChannelAdapter channelAdapter;
     private TextView txtSelectedCategoryTitle, txtChannelCount, txtNotificationBadge;
     private EditText edtSearch;
+    private ImageView btnClearSearch;
     private com.ottking.devcode.utils.AppNotificationManager notificationManager;
     private boolean isCategoryExpanded = true;
 
     private ActivityResultLauncher<Intent> voiceSearchLauncher;
     private ActivityResultLauncher<String> requestPermissionLauncher;
+
+    private final List<CategoryEntity> rawCategoriesFromDb = new ArrayList<>();
+    private boolean channelsLoadedFromDb = false;
 
     private int lastFocusedChannelPosition = 0;
     private boolean cameToSearchFromChannel = false;
@@ -87,14 +92,36 @@ public class MainActivity extends AppCompatActivity {
     private int selectedCategoryId = DEFAULT_ALL_CATEGORY_ID; // 1 = All
     private int allCategoryId = DEFAULT_ALL_CATEGORY_ID;
     private boolean isInitialLaunch = true;
+    private boolean isServerSyncCompleted = false;
+    private boolean hasShownEmptyModal = false;
+    private final DataPollingManager.SyncListener syncListener = new DataPollingManager.SyncListener() {
+        @Override
+        public void onSyncStarted() {}
+
+        @Override
+        public void onSyncCompleted(boolean success, String errorMessage) {
+            isServerSyncCompleted = true;
+            runOnUiThread(() -> {
+                filterChannels();
+                updateCategoriesAndSelection();
+                if (allChannels.isEmpty() && !hasShownEmptyModal) {
+                    hasShownEmptyModal = true;
+                    showNoChannelsModal();
+                }
+            });
+        }
+    };
 
     private View layoutNetworkStatus, viewNetworkDot, bannerNoInternet;
+    private View layoutNoChannels;
+    private Button btnRetrySyncChannels;
     private TextView txtNetworkStatus;
     private Button btnBannerRetry;
     private ConnectivityManager connectivityManager;
     private ConnectivityManager.NetworkCallback networkCallback;
     private Dialog currentExitDialog;
     private NotificationPanelDialog notificationPanelDialog;
+    private Dialog noChannelsModalDialog;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -110,16 +137,28 @@ public class MainActivity extends AppCompatActivity {
         txtChannelCount = findViewById(R.id.txtChannelCount);
         txtNotificationBadge = findViewById(R.id.txtNotificationBadge);
         edtSearch = findViewById(R.id.edtSearch);
+        btnClearSearch = findViewById(R.id.btnClearSearch);
         layoutNetworkStatus = findViewById(R.id.layoutNetworkStatus);
         viewNetworkDot = findViewById(R.id.viewNetworkDot);
         txtNetworkStatus = findViewById(R.id.txtNetworkStatus);
         bannerNoInternet = findViewById(R.id.bannerNoInternet);
         btnBannerRetry = findViewById(R.id.btnBannerRetry);
+        layoutNoChannels = findViewById(R.id.layoutNoChannels);
+        btnRetrySyncChannels = findViewById(R.id.btnRetrySyncChannels);
+
+        if (btnRetrySyncChannels != null) {
+            UIUtils.applyFocusAnimation(btnRetrySyncChannels, 1.06f, 8f);
+            btnRetrySyncChannels.setOnClickListener(v -> {
+                hasShownEmptyModal = false;
+                Toast.makeText(this, "Refreshing channels from server...", Toast.LENGTH_SHORT).show();
+                DataPollingManager.getInstance(this).triggerSyncNow();
+            });
+        }
 
         if (btnBannerRetry != null) {
             btnBannerRetry.setOnFocusChangeListener((v, hasFocus) -> UIUtils.animateFocus(v, hasFocus, 1.05f, 6f));
             btnBannerRetry.setOnClickListener(v -> {
-                Toast.makeText(this, "সার্ভারের সাথে পুনরায় সিংক করা হচ্ছে...", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Re-syncing with server...", Toast.LENGTH_SHORT).show();
                 DataPollingManager.getInstance(this).triggerSyncNow();
                 updateNetworkStatusUI(checkIsConnected());
             });
@@ -226,6 +265,7 @@ public class MainActivity extends AppCompatActivity {
         View btnSettings = findViewById(R.id.btnSettings);
         return currentFocus == edtSearch
                 || (edtSearch != null && edtSearch.hasFocus())
+                || currentFocus == btnClearSearch
                 || currentFocus == btnVoiceSearch
                 || currentFocus == btnNotification
                 || currentFocus == btnSettings;
@@ -332,7 +372,7 @@ public class MainActivity extends AppCompatActivity {
             FocusManager.getInstance().saveHomeCategoryFocus(catId, pos, view);
             FocusManager.getInstance().saveFocus(this, SCREEN_KEY, view);
         });
-        categoryAdapter.setCategories(prepareCategoriesList(com.ottking.devcode.network.ApiClient.getDefaultCategories()));
+        categoryAdapter.setCategories(prepareCategoriesList(new ArrayList<>()));
         recyclerCategories.setAdapter(categoryAdapter);
 
         // Channels Grid Layout (exactly 5 columns)
@@ -343,7 +383,13 @@ public class MainActivity extends AppCompatActivity {
                 com.ottking.devcode.security.VpnDetectionManager.getInstance().showVpnBlockingDialog(MainActivity.this, null);
                 return;
             }
-            int pos = allChannels.indexOf(channel);
+            int pos = -1;
+            for (int i = 0; i < allChannels.size(); i++) {
+                if (allChannels.get(i).id == channel.id) {
+                    pos = i;
+                    break;
+                }
+            }
             int channelNumber = (pos != -1) ? (pos + 1) : 1;
             Intent intent = new Intent(MainActivity.this, PlayerActivity.class);
             intent.putExtra("channel_id", channel.id);
@@ -414,7 +460,6 @@ public class MainActivity extends AppCompatActivity {
             }
         });
         allChannels.clear();
-        allChannels.addAll(com.ottking.devcode.network.ApiClient.getDefaultChannels());
         channelAdapter.setAllChannelsList(allChannels);
         recyclerChannels.setAdapter(channelAdapter);
         filterChannels();
@@ -710,41 +755,71 @@ public class MainActivity extends AppCompatActivity {
         AppDatabase db = AppDatabase.getInstance(this);
 
         db.categoryDao().getAllCategories().observe(this, categories -> {
-            List<CategoryEntity> list = (categories != null && !categories.isEmpty())
-                    ? categories
-                    : com.ottking.devcode.network.ApiClient.getDefaultCategories();
-            List<CategoryEntity> processed = prepareCategoriesList(list);
-            categoryAdapter.setCategories(processed);
-
-            // Ensure "All" category is selected and active by default
-            if (isInitialLaunch || isAllCategory(selectedCategoryId) || categoryAdapter.getSelectedPosition() == 0) {
-                if (!processed.isEmpty()) {
-                    CategoryEntity firstCat = processed.get(0);
-                    selectedCategoryId = firstCat.id;
-                    allCategoryId = firstCat.id;
-                    categoryAdapter.setSelectedPosition(0);
-                    if (txtSelectedCategoryTitle != null) {
-                        txtSelectedCategoryTitle.setText(firstCat.name);
-                    }
-                }
-                filterChannels();
+            rawCategoriesFromDb.clear();
+            if (categories != null) {
+                rawCategoriesFromDb.addAll(categories);
             }
-
-            if (isInitialLaunch) {
-                recyclerCategories.post(this::focusFirstCategoryItem);
-            }
+            updateCategoriesAndSelection();
         });
 
         db.channelDao().getAllChannels().observe(this, channels -> {
+            channelsLoadedFromDb = true;
             allChannels.clear();
             if (channels != null && !channels.isEmpty()) {
                 allChannels.addAll(channels);
-            } else {
-                allChannels.addAll(com.ottking.devcode.network.ApiClient.getDefaultChannels());
             }
             channelAdapter.setAllChannelsList(allChannels);
             filterChannels();
+            updateCategoriesAndSelection();
         });
+    }
+
+    private void updateCategoriesAndSelection() {
+        List<CategoryEntity> processed = prepareCategoriesList(rawCategoriesFromDb);
+        categoryAdapter.setCategories(processed);
+
+        if (isInitialLaunch) {
+            if (!processed.isEmpty()) {
+                CategoryEntity firstCat = processed.get(0);
+                selectedCategoryId = firstCat.id;
+                allCategoryId = firstCat.id;
+                categoryAdapter.setSelectedPosition(0);
+                if (txtSelectedCategoryTitle != null) {
+                    txtSelectedCategoryTitle.setText(firstCat.name);
+                }
+            }
+            filterChannels();
+            recyclerCategories.post(this::focusFirstCategoryItem);
+        } else {
+            // Real-time server update while user is on Home screen
+            int foundPos = -1;
+            CategoryEntity foundCat = null;
+            for (int i = 0; i < processed.size(); i++) {
+                if (processed.get(i).id == selectedCategoryId) {
+                    foundPos = i;
+                    foundCat = processed.get(i);
+                    break;
+                }
+            }
+
+            if (foundPos != -1 && foundCat != null) {
+                categoryAdapter.setSelectedPosition(foundPos);
+                if (txtSelectedCategoryTitle != null) {
+                    txtSelectedCategoryTitle.setText(foundCat.name);
+                }
+                filterChannels();
+            } else if (!processed.isEmpty()) {
+                // Previously selected category was removed or is blank; fallback gracefully to All (index 0)
+                CategoryEntity fallback = processed.get(0);
+                selectedCategoryId = fallback.id;
+                allCategoryId = fallback.id;
+                categoryAdapter.setSelectedPosition(0);
+                if (txtSelectedCategoryTitle != null) {
+                    txtSelectedCategoryTitle.setText(fallback.name);
+                }
+                filterChannels();
+            }
+        }
     }
 
     private void setupSearch() {
@@ -852,6 +927,16 @@ public class MainActivity extends AppCompatActivity {
                     if (edtSearch.isCursorVisible() && edtSearch.getSelectionStart() < edtSearch.getText().length()) {
                         return false;
                     }
+                    if (btnClearSearch != null && btnClearSearch.getVisibility() == View.VISIBLE) {
+                        InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+                        if (imm != null) {
+                            imm.hideSoftInputFromWindow(edtSearch.getWindowToken(), 0);
+                        }
+                        edtSearch.setCursorVisible(false);
+                        edtSearch.setFocusableInTouchMode(false);
+                        btnClearSearch.requestFocus();
+                        return true;
+                    }
                     // At the rightmost boundary of the header: consume event so focus never jumps to the left!
                     return true;
                 }
@@ -859,12 +944,53 @@ public class MainActivity extends AppCompatActivity {
             return false;
         });
 
+        if (btnClearSearch != null) {
+            UIUtils.applyFocusAnimation(btnClearSearch, 1.15f, 6f);
+            btnClearSearch.setOnClickListener(v -> {
+                edtSearch.setText("");
+                filterChannels();
+                InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+                if (imm != null) {
+                    imm.hideSoftInputFromWindow(edtSearch.getWindowToken(), 0);
+                }
+                edtSearch.setCursorVisible(false);
+                edtSearch.setFocusableInTouchMode(false);
+                edtSearch.requestFocus();
+            });
+
+            btnClearSearch.setOnKeyListener((v, keyCode, event) -> {
+                if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                    if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) {
+                        btnClearSearch.performClick();
+                        return true;
+                    } else if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+                        edtSearch.requestFocus();
+                        return true;
+                    } else if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN || keyCode == KeyEvent.KEYCODE_BACK) {
+                        if (cameToSearchFromChannel && channelAdapter != null && channelAdapter.getItemCount() > 0) {
+                            cameToSearchFromChannel = false;
+                            focusChannelAtPosition(lastFocusedChannelPosition);
+                        } else {
+                            focusSelectedCategory();
+                        }
+                        return true;
+                    } else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                        return true; // edge boundary
+                    }
+                }
+                return false;
+            });
+        }
+
         edtSearch.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
 
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (btnClearSearch != null) {
+                    btnClearSearch.setVisibility(s != null && s.length() > 0 ? View.VISIBLE : View.GONE);
+                }
                 filterChannels();
             }
 
@@ -881,28 +1007,58 @@ public class MainActivity extends AppCompatActivity {
             return result;
         }
 
+        boolean isSubActive = NetworkUtils.isSubscriptionActive(this);
+
         CategoryEntity foundAll = null;
+        List<CategoryEntity> validCategories = new ArrayList<>();
+
         for (CategoryEntity c : input) {
+            if (c == null) continue;
             String name = c.name != null ? c.name.trim() : "";
-            if ("all".equalsIgnoreCase(name) || "all channels".equalsIgnoreCase(name) || "সকল চ্যানেল".equalsIgnoreCase(name) || "সকল".equalsIgnoreCase(name)) {
-                foundAll = new CategoryEntity(c.id, "All", (c.icon != null && !c.icon.isEmpty()) ? c.icon : "ic_tv");
-                allCategoryId = c.id;
-                break;
+            // If category name is blank or null, do NOT show it
+            if (name.isEmpty() || "null".equalsIgnoreCase(name)) {
+                continue;
+            }
+
+            if ("all".equalsIgnoreCase(name) || "all channels".equalsIgnoreCase(name)
+                    || "সকল চ্যানেল".equalsIgnoreCase(name) || "সকল".equalsIgnoreCase(name)) {
+                if (foundAll == null) {
+                    foundAll = new CategoryEntity(c.id, "All", (c.icon != null && !c.icon.isEmpty()) ? c.icon : "ic_tv");
+                    allCategoryId = c.id;
+                }
+            } else {
+                // If channels have been loaded or channels list is present, verify category has channels
+                if (channelsLoadedFromDb || !allChannels.isEmpty()) {
+                    boolean hasChannel = false;
+                    for (ChannelEntity chan : allChannels) {
+                        if (!isSubActive && chan.isPremium) {
+                            continue;
+                        }
+                        if (chan.name == null || chan.name.trim().isEmpty()) {
+                            continue;
+                        }
+                        if (chan.categoryId == c.id) {
+                            hasChannel = true;
+                            break;
+                        }
+                    }
+                    if (!hasChannel) {
+                        // Category is blank (has 0 channels) -> do NOT show it!
+                        continue;
+                    }
+                }
+                validCategories.add(c);
             }
         }
 
         if (foundAll != null) {
             result.add(foundAll);
-            for (CategoryEntity c : input) {
-                if (c.id != foundAll.id) {
-                    result.add(c);
-                }
-            }
+            result.addAll(validCategories);
         } else {
             // Pick an ID not used by existing categories for the All category
             int specialId = DEFAULT_ALL_CATEGORY_ID;
             boolean id1Used = false;
-            for (CategoryEntity c : input) {
+            for (CategoryEntity c : validCategories) {
                 if (c.id == DEFAULT_ALL_CATEGORY_ID) {
                     id1Used = true;
                     break;
@@ -913,7 +1069,7 @@ public class MainActivity extends AppCompatActivity {
             }
             allCategoryId = specialId;
             result.add(new CategoryEntity(specialId, "All", "ic_tv"));
-            result.addAll(input);
+            result.addAll(validCategories);
         }
         return result;
     }
@@ -962,8 +1118,59 @@ public class MainActivity extends AppCompatActivity {
         channelAdapter.setChannels(filteredChannels);
         if (allChannels.isEmpty()) {
             txtChannelCount.setText("0 Channels (No server data)");
+            if (layoutNoChannels != null) {
+                layoutNoChannels.setVisibility(View.VISIBLE);
+            }
+            if (recyclerChannels != null) {
+                recyclerChannels.setVisibility(View.GONE);
+            }
+        } else if (filteredChannels.isEmpty()) {
+            txtChannelCount.setText("0 Channels");
+            if (layoutNoChannels != null) {
+                layoutNoChannels.setVisibility(View.VISIBLE);
+            }
+            if (recyclerChannels != null) {
+                recyclerChannels.setVisibility(View.GONE);
+            }
         } else {
+            hasShownEmptyModal = false;
             txtChannelCount.setText(filteredChannels.size() + " Channels");
+            if (layoutNoChannels != null) {
+                layoutNoChannels.setVisibility(View.GONE);
+            }
+            if (recyclerChannels != null) {
+                recyclerChannels.setVisibility(View.VISIBLE);
+            }
+            dismissNoChannelsModal();
+        }
+    }
+
+    public void showNoChannelsModal() {
+        if (isFinishing() || isDestroyed()) return;
+        if (noChannelsModalDialog != null && noChannelsModalDialog.isShowing()) return;
+
+        noChannelsModalDialog = new CustomDialog.Builder(this)
+                .setTitle(getString(R.string.title_no_channels_found))
+                .setIcon(R.drawable.ic_tv)
+                .setMessage(getString(R.string.msg_no_channels_found))
+                .setPositiveButton(getString(R.string.btn_retry), dialog -> {
+                    dialog.dismiss();
+                    hasShownEmptyModal = false;
+                    Toast.makeText(this, "Refreshing channels from server...", Toast.LENGTH_SHORT).show();
+                    DataPollingManager.getInstance(this).triggerSyncNow();
+                })
+                .setNegativeButton(getString(R.string.btn_close), dialog -> dialog.dismiss())
+                .setCancelable(true)
+                .create();
+
+        noChannelsModalDialog.show();
+    }
+
+    private void dismissNoChannelsModal() {
+        if (noChannelsModalDialog != null && noChannelsModalDialog.isShowing()) {
+            try {
+                noChannelsModalDialog.dismiss();
+            } catch (Exception ignored) {}
         }
     }
 
@@ -1158,8 +1365,10 @@ public class MainActivity extends AppCompatActivity {
 
         updateNotificationBadge();
         filterChannels();
+        updateCategoriesAndSelection();
         
-        // Start background real-time sync & polling
+        // Register sync listener and start polling
+        DataPollingManager.getInstance(this).addSyncListener(syncListener);
         DataPollingManager.getInstance(this).startPolling();
         DataPollingManager.getInstance(this).triggerSyncNow();
 
@@ -1170,7 +1379,29 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
+        DataPollingManager.getInstance(this).removeSyncListener(syncListener);
+        DataPollingManager.getInstance(this).stopPolling();
         com.ottking.devcode.security.VpnDetectionManager.getInstance().stopMonitoring(this);
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        dismissNoChannelsModal();
+        if (currentExitDialog != null) {
+            try {
+                if (currentExitDialog.isShowing()) {
+                    currentExitDialog.dismiss();
+                }
+            } catch (Exception ignored) {}
+            currentExitDialog = null;
+        }
+        if (notificationPanelDialog != null) {
+            try {
+                notificationPanelDialog.dismiss();
+            } catch (Exception ignored) {}
+            notificationPanelDialog = null;
+        }
     }
 
     @Override
@@ -1258,6 +1489,8 @@ public class MainActivity extends AppCompatActivity {
             } catch (Exception ignored) {}
             notificationPanelDialog = null;
         }
+        dismissNoChannelsModal();
+        DataPollingManager.getInstance(this).removeSyncListener(syncListener);
         super.onDestroy();
         if (connectivityManager != null && networkCallback != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             try {

@@ -56,6 +56,15 @@ public class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.ChannelV
             this.spanCount = 1;
         }
         this.listener = listener;
+        setHasStableIds(true);
+    }
+
+    @Override
+    public long getItemId(int position) {
+        if (position >= 0 && position < channelList.size()) {
+            return channelList.get(position).id;
+        }
+        return RecyclerView.NO_ID;
     }
 
     public void setNavigationListener(OnChannelNavigationListener navigationListener) {
@@ -77,38 +86,41 @@ public class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.ChannelV
 
     public void setAllChannelsList(List<ChannelEntity> all) {
         if (all == null) return;
-        if (this.masterAllChannels.size() == all.size()) {
-            boolean same = true;
-            for (int i = 0; i < all.size(); i++) {
-                if (this.masterAllChannels.get(i).id != all.get(i).id) {
-                    same = false;
-                    break;
-                }
-            }
-            if (same) return;
-        }
         this.masterAllChannels.clear();
         this.masterAllChannels.addAll(all);
-        notifyDataSetChanged();
     }
 
     public void setChannels(List<ChannelEntity> channels) {
         if (channels == null) return;
-        if (this.channelList.size() == channels.size()) {
-            boolean same = true;
-            for (int i = 0; i < channels.size(); i++) {
-                ChannelEntity oldItem = this.channelList.get(i);
-                ChannelEntity newItem = channels.get(i);
-                if (oldItem.id != newItem.id || (oldItem.name != null && !oldItem.name.equals(newItem.name)) || oldItem.isPremium != newItem.isPremium) {
-                    same = false;
-                    break;
-                }
+        List<ChannelEntity> oldList = new ArrayList<>(this.channelList);
+        List<ChannelEntity> newList = new ArrayList<>(channels);
+        androidx.recyclerview.widget.DiffUtil.DiffResult diffResult = androidx.recyclerview.widget.DiffUtil.calculateDiff(new androidx.recyclerview.widget.DiffUtil.Callback() {
+            @Override
+            public int getOldListSize() {
+                return oldList.size();
             }
-            if (same) return;
-        }
+
+            @Override
+            public int getNewListSize() {
+                return newList.size();
+            }
+
+            @Override
+            public boolean areItemsTheSame(int oldItemPosition, int newItemPosition) {
+                return oldList.get(oldItemPosition).id == newList.get(newItemPosition).id;
+            }
+
+            @Override
+            public boolean areContentsTheSame(int oldItemPosition, int newItemPosition) {
+                ChannelEntity oldItem = oldList.get(oldItemPosition);
+                ChannelEntity newItem = newList.get(newItemPosition);
+                return oldItem.equals(newItem);
+            }
+        });
+
         this.channelList.clear();
-        this.channelList.addAll(channels);
-        notifyDataSetChanged();
+        this.channelList.addAll(newList);
+        diffResult.dispatchUpdatesTo(this);
     }
 
     public ChannelEntity getChannelAt(int pos) {
@@ -190,11 +202,16 @@ public class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.ChannelV
             holder.txtBadge.setTextColor(holder.itemView.getContext().getColor(R.color.black));
         }
 
-        Glide.with(holder.itemView.getContext())
-                .load(channel.logoUrl)
-                .placeholder(R.drawable.img_splash_bg)
-                .error(R.drawable.img_splash_bg)
-                .into(holder.imgLogo);
+        if (UIUtils.isValidImageUrl(channel.logoUrl)) {
+            Glide.with(holder.itemView.getContext())
+                    .load(channel.logoUrl.trim())
+                    .placeholder(R.drawable.img_app_icon)
+                    .error(R.drawable.img_app_icon)
+                    .into(holder.imgLogo);
+        } else {
+            Glide.with(holder.itemView.getContext()).clear(holder.imgLogo);
+            holder.imgLogo.setImageResource(R.drawable.img_app_icon);
+        }
 
         holder.itemView.setOnFocusChangeListener((v, hasFocus) -> {
             UIUtils.animateFocus(v, hasFocus, 1.04f, 8f);
@@ -226,7 +243,9 @@ public class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.ChannelV
                             }
                         } else if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
                             if (pos >= channelList.size() - 1) {
-                                return true; // Reached end of list
+                                // Already at the end of the channel list: clamp focus to the last item
+                                focusChannelItem(holder.itemView, channelList.size() - 1);
+                                return true;
                             } else {
                                 focusChannelItem(holder.itemView, pos + 1);
                                 return true;
@@ -291,6 +310,14 @@ public class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.ChannelV
     @Override
     public int getItemCount() {
         return channelList.size();
+    }
+
+    @Override
+    public void onViewRecycled(@NonNull ChannelViewHolder holder) {
+        super.onViewRecycled(holder);
+        if (holder.imgLogo != null) {
+            Glide.with(holder.itemView.getContext()).clear(holder.imgLogo);
+        }
     }
 
     private void focusChannelItem(View currentView, int targetPos) {

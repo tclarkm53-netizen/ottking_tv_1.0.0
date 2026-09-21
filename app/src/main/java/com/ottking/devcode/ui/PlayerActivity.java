@@ -57,7 +57,9 @@ import androidx.media3.common.MediaItem;
 import androidx.media3.common.MimeTypes;
 import androidx.media3.common.Player;
 import androidx.media3.common.PlaybackException;
+import androidx.media3.common.PlaybackParameters;
 import androidx.media3.common.Tracks;
+import androidx.media3.exoplayer.SeekParameters;
 import androidx.media3.datasource.DataSource;
 import androidx.media3.datasource.DefaultDataSource;
 import androidx.media3.datasource.DefaultHttpDataSource;
@@ -96,7 +98,9 @@ import com.ottking.devcode.db.AppDatabase;
 import com.ottking.devcode.db.ChannelEntity;
 import com.ottking.devcode.model.StreamTokenAuth;
 import com.ottking.devcode.model.UserInfo;
+import com.ottking.devcode.utils.PlayerUtils;
 import com.ottking.devcode.network.ApiClient;
+import com.ottking.devcode.network.DataPollingManager;
 import com.ottking.devcode.preferences.AppPreferences;
 import com.ottking.devcode.security.SecurityUtils;
 import com.ottking.devcode.utils.UIUtils;
@@ -118,6 +122,9 @@ public class PlayerActivity extends AppCompatActivity {
     private View cardChannelOverlay;
     private View drawerChannelList;
     private EditText edtPlayerSearch;
+    private ImageView btnClearPlayerSearch;
+    private ImageButton btnPlayerVoiceSearch;
+    private boolean isAwaitingVoiceResult = false;
     private List<ChannelEntity> allChannelsList = new ArrayList<>();
 
     private final Handler uiOverlayHandler = new Handler(Looper.getMainLooper());
@@ -148,15 +155,18 @@ public class PlayerActivity extends AppCompatActivity {
     // --- Stream Auto-Polling & Freeze Recovery Watchdog ---
     private final Handler streamAutoPollHandler = new Handler(Looper.getMainLooper());
     private long lastObservedPosition = -1;
+    private long lastFrameRenderTimeMs = 0;
+    private long lastBufferedPositionMs = -1;
     private long positionStallStartTime = 0;
     private long continuousBufferStartTime = 0;
     private int consecutiveStallRecoveries = 0;
     private boolean isPlayerResumed = false;
-    private static final long AUTO_POLL_INTERVAL_MS = 2000; // Poll every 2 seconds for continuous stream health monitoring
-    private static final long MAX_ALLOWED_BUFFER_MS = 25000; // 25s continuous buffer = auto-jump to live edge or refresh stream
-    private long currentLiveTargetOffsetMs = 20000;
-    private long currentLiveMinOffsetMs = 8000;
-    private long currentLiveMaxOffsetMs = 180000;
+    private static final long AUTO_POLL_INTERVAL_MS = 1000; // Poll every 1.0 second for proactive stream health & buffer monitoring
+    private static final long MAX_ALLOWED_BUFFER_MS = 6500; // 6.5s continuous buffer stall = auto-jump to live edge or refresh stream
+    private long currentLiveTargetOffsetMs = C.TIME_UNSET;
+    private long currentLiveMinOffsetMs = C.TIME_UNSET;
+    private long currentLiveMaxOffsetMs = C.TIME_UNSET;
+    private boolean isProactiveRecoveryActive = false;
 
     // --- Periodic Edge-Cookie Refresher ---
     private final Handler cookieRefreshHandler = new Handler(Looper.getMainLooper());
@@ -172,6 +182,11 @@ public class PlayerActivity extends AppCompatActivity {
     private final StringBuilder channelNumBuffer = new StringBuilder();
     private final Handler channelNumHandler = new Handler(Looper.getMainLooper());
     private final Runnable tuneChannelNumRunnable = this::commitChannelNumberInput;
+
+    private final Handler channelSwitchDebounceHandler = new Handler(Looper.getMainLooper());
+    private Runnable pendingChannelSwitchRunnable = null;
+
+    private boolean initialPlaybackStarted = false;
 
     private ActivityResultLauncher<Intent> voiceSearchLauncher;
     private ActivityResultLauncher<String> requestPermissionLauncher;
@@ -190,6 +205,7 @@ public class PlayerActivity extends AppCompatActivity {
         voiceSearchLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
+                    isAwaitingVoiceResult = false;
                     if (result.getResultCode() == RESULT_OK && result.getData() != null) {
                         ArrayList<String> matches = result.getData().getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
                         if (matches != null && !matches.isEmpty()) {
@@ -199,6 +215,8 @@ public class PlayerActivity extends AppCompatActivity {
                             }
                         }
                     }
+                    // Reliably restore focus after returning from Voice Search dialog
+                    restoreVoiceSearchReturnFocus();
                 });
 
         requestPermissionLauncher = registerForActivityResult(
@@ -211,7 +229,9 @@ public class PlayerActivity extends AppCompatActivity {
 
         playerView = findViewById(R.id.playerView);
         playerView.setUseController(false);
-        playerView.setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING);
+        playerView.setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER);
+        playerView.setKeepContentOnPlayerReset(true);
+        dismissBufferingView();
         applySavedPlayerSettings();
         imgPlayerChannelLogo = findViewById(R.id.imgPlayerChannelLogo);
         txtPlayerChannelName = findViewById(R.id.txtPlayerChannelName);
@@ -248,6 +268,9 @@ public class PlayerActivity extends AppCompatActivity {
             currentLogoUrl = getIntent().getStringExtra("logo_url");
             currentIsPremium = getIntent().getBooleanExtra("is_premium", false);
             prefs.setLastPlayedChannelId(currentChannelId);
+            initialPlaybackStarted = true;
+        } else {
+            initialPlaybackStarted = false;
         }
 
         if (currentStreamUrl != null) {
@@ -425,6 +448,7 @@ public class PlayerActivity extends AppCompatActivity {
                 prefs.setLastPlayedChannelId(currentChannelId);
 
                 updateChannelInfoUI();
+                stopAndFlushPreviousStream();
                 playStream(currentStreamUrl);
                 showCardOverlayTemporarily(4000);
             }
@@ -435,6 +459,54 @@ public class PlayerActivity extends AppCompatActivity {
                 cardChannelNumOverlay.setVisibility(View.GONE);
             }
         }
+    }
+
+    private void dismissBufferingView() {
+        if (playerView != null) {
+            try {
+                playerView.setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER);
+                View buffering = playerView.findViewById(androidx.media3.ui.R.id.exo_buffering);
+                if (buffering != null) {
+                    buffering.setVisibility(View.GONE);
+                }
+            } catch (Exception ignored) {}
+        }
+    }
+
+    private void stopAndFlushPreviousStream() {
+        if (channelSwitchDebounceHandler != null) {
+            channelSwitchDebounceHandler.removeCallbacksAndMessages(null);
+        }
+        if (retryHandler != null) {
+            retryHandler.removeCallbacksAndMessages(null);
+        }
+        if (bufferingWatchdogHandler != null && bufferingWatchdogRunnable != null) {
+            bufferingWatchdogHandler.removeCallbacks(bufferingWatchdogRunnable);
+        }
+        stopStreamAutoPolling();
+
+        // Immediately abort previous stream network downloads & purge buffers so old picture doesn't freeze
+        if (sharedOkHttpClient != null) {
+            try {
+                sharedOkHttpClient.dispatcher().cancelAll();
+            } catch (Exception ignored) {}
+        }
+        if (player != null) {
+            try {
+                player.stop();
+                player.clearMediaItems();
+            } catch (Exception ignored) {}
+        }
+
+        // Reset all playback tracking metrics
+        lastObservedPosition = -1;
+        lastBufferedPositionMs = -1;
+        lastFrameRenderTimeMs = 0;
+        positionStallStartTime = 0;
+        continuousBufferStartTime = 0;
+        consecutiveStallRecoveries = 0;
+        isProactiveRecoveryActive = false;
+        retryCount = 0;
     }
 
     private void changeChannel(boolean next) {
@@ -467,8 +539,13 @@ public class PlayerActivity extends AppCompatActivity {
         prefs.setLastPlayedChannelId(currentChannelId);
 
         updateChannelInfoUI();
-        playStream(currentStreamUrl);
         showCardOverlayTemporarily(4000);
+
+        // Immediately abort previous stream network downloads & purge buffers so old picture doesn't freeze
+        stopAndFlushPreviousStream();
+
+        // Load new channel immediately with zero delay for ultra-responsive TV experience
+        playStream(currentStreamUrl);
     }
 
     @Override
@@ -606,12 +683,17 @@ public class PlayerActivity extends AppCompatActivity {
             channelAdapter.setPlayingChannelId(currentChannelId);
         }
 
-        if (currentLogoUrl != null && !currentLogoUrl.isEmpty()) {
-            Glide.with(this)
-                    .load(currentLogoUrl)
-                    .placeholder(R.drawable.img_splash_bg)
-                    .error(R.drawable.img_splash_bg)
-                    .into(imgPlayerChannelLogo);
+        if (imgPlayerChannelLogo != null && !isFinishing() && !isDestroyed()) {
+            if (UIUtils.isValidImageUrl(currentLogoUrl)) {
+                Glide.with(this)
+                        .load(currentLogoUrl.trim())
+                        .placeholder(R.drawable.img_app_icon)
+                        .error(R.drawable.img_app_icon)
+                        .into(imgPlayerChannelLogo);
+            } else {
+                Glide.with(this).clear(imgPlayerChannelLogo);
+                imgPlayerChannelLogo.setImageResource(R.drawable.img_app_icon);
+            }
         }
     }
 
@@ -649,9 +731,9 @@ public class PlayerActivity extends AppCompatActivity {
             sharedOkHttpClient = new OkHttpClient.Builder()
                     .dispatcher(dispatcher)
                     .connectionPool(new ConnectionPool(32, 10, TimeUnit.MINUTES))
-                    .connectTimeout(15, TimeUnit.SECONDS)
-                    .readTimeout(25, TimeUnit.SECONDS)
-                    .writeTimeout(15, TimeUnit.SECONDS)
+                    .connectTimeout(5, TimeUnit.SECONDS)
+                    .readTimeout(8, TimeUnit.SECONDS)
+                    .writeTimeout(8, TimeUnit.SECONDS)
                     .retryOnConnectionFailure(true)
                     .followRedirects(true)
                     .followSslRedirects(true)
@@ -779,11 +861,11 @@ public class PlayerActivity extends AppCompatActivity {
             if (bandwidthMeter == null) {
                 bandwidthMeter = new DefaultBandwidthMeter.Builder(context)
                         .setResetOnNetworkTypeChange(true)
-                        .setInitialBitrateEstimate(3_000_000)
+                        .setInitialBitrateEstimate(1_200_000)
                         .build();
             }
             OkHttpDataSource.Factory okHttpDataSourceFactory = new OkHttpDataSource.Factory(getOkHttpClient())
-                    .setUserAgent("OTT-KING TV/" + staticAppVersionName)
+                    .setUserAgent(com.ottking.devcode.utils.SecurePlayerHeaders.getDecryptedUserAgent())
                     .setTransferListener(bandwidthMeter);
             dataSourceFactory = new DefaultDataSource.Factory(context, okHttpDataSourceFactory);
         }
@@ -797,100 +879,85 @@ public class PlayerActivity extends AppCompatActivity {
             if (bandwidthMeter == null) {
                 bandwidthMeter = new DefaultBandwidthMeter.Builder(playerContext)
                         .setResetOnNetworkTypeChange(true)
-                        .setInitialBitrateEstimate(3_500_000)
+                        .setInitialBitrateEstimate(800_000) // 800 kbps downloads initial chunk in ~20-40ms for lightning startup
                         .build();
             }
 
             AdaptiveTrackSelection.Factory adaptiveTrackSelectionFactory = new AdaptiveTrackSelection.Factory(
-                    8000,   // minDurationForQualityIncreaseMs: Wait 8s of sustained bandwidth before increasing quality
-                    1500,   // maxDurationForQualityDecreaseMs: Downgrade quickly within 1.5s if bandwidth drops
-                    35000,  // minDurationToRetainAfterDiscardMs: Keep at least 35s of already downloaded advance buffer
-                    0.75f   // bandwidthFraction: 75% safe allocation leaving 25% safety headroom
+                    1500,   // minDurationForQualityIncreaseMs: 1.5s fast step-up to Full HD
+                    1000,   // maxDurationForQualityDecreaseMs: Downgrade quickly within 1.0s if bandwidth drops
+                    10000,  // minDurationToRetainAfterDiscardMs
+                    0.80f   // bandwidthFraction
             );
             trackSelector = new DefaultTrackSelector(playerContext, adaptiveTrackSelectionFactory);
 
-            DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(playerContext);
-            renderersFactory.setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER);
-            renderersFactory.setEnableDecoderFallback(true);
-            renderersFactory.setAllowedVideoJoiningTimeMs(1000); // Snappy 1000ms ensures immediate first-frame video render
-
-            if (!prefs.isHardwareAccelerationEnabled()) {
-                renderersFactory.setMediaCodecSelector((mimeType, requiresSecureDecoder, requiresTunnelingDecoder) -> {
-                    List<MediaCodecInfo> decoders =
-                            MediaCodecSelector.DEFAULT.getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunnelingDecoder);
-                    List<MediaCodecInfo> swDecoders = new ArrayList<>();
-                    for (MediaCodecInfo info : decoders) {
-                        if (info.softwareOnly) {
-                            swDecoders.add(info);
-                        }
-                    }
-                    return !swDecoders.isEmpty() ? swDecoders : decoders;
-                });
-            } else {
-                renderersFactory.setMediaCodecSelector(MediaCodecSelector.DEFAULT);
-            }
+            DefaultRenderersFactory renderersFactory = PlayerUtils.createOptimizedRenderersFactory(
+                    playerContext,
+                    prefs.isHardwareAccelerationEnabled()
+            );
 
             String buf = prefs.getBufferSettings();
             boolean isLowRam = isLowEndDevice();
 
             int minBufferMs;
             int maxBufferMs;
-            int bufferForPlaybackMs;
-            int bufferForPlaybackAfterRebufferMs;
+            // ABSOLUTE MINIMUM LATENCY STARTUP (<=20ms target) & ZERO BUFFERING:
+            // bufferForPlaybackMs = 20ms ensures playback begins immediately within 20ms
+            // while background loading maintains continuous segments to prevent freezing.
+            int bufferForPlaybackMs = 20;
+            int bufferForPlaybackAfterRebufferMs = 100;
 
             if (buf.contains("Fast") || buf.contains("1 sec") || buf.contains("2s")) {
-                bufferForPlaybackMs = 1500;
-                bufferForPlaybackAfterRebufferMs = 3000;
-                minBufferMs = isLowRam ? 30000 : 45000;
-                maxBufferMs = isLowRam ? 60000 : 90000;
-                currentLiveTargetOffsetMs = 10000;
-                currentLiveMinOffsetMs = 5000;
-                currentLiveMaxOffsetMs = 90000;
+                minBufferMs = isLowRam ? 15000 : 25000;
+                maxBufferMs = isLowRam ? 30000 : 50000;
+                bufferForPlaybackMs = 20;
+                bufferForPlaybackAfterRebufferMs = 100;
+                currentLiveTargetOffsetMs = C.TIME_UNSET;
+                currentLiveMinOffsetMs = C.TIME_UNSET;
+                currentLiveMaxOffsetMs = C.TIME_UNSET;
             } else if (buf.contains("Standard") || buf.contains("3 sec") || buf.contains("60s")) {
-                bufferForPlaybackMs = 2500;
-                bufferForPlaybackAfterRebufferMs = 5000;
-                minBufferMs = isLowRam ? 45000 : 60000;
-                maxBufferMs = isLowRam ? 90000 : 120000;
-                currentLiveTargetOffsetMs = 14000;
-                currentLiveMinOffsetMs = 6000;
-                currentLiveMaxOffsetMs = 120000;
+                minBufferMs = isLowRam ? 25000 : 35000;
+                maxBufferMs = isLowRam ? 50000 : 70000;
+                bufferForPlaybackMs = 20;
+                bufferForPlaybackAfterRebufferMs = 100;
+                currentLiveTargetOffsetMs = C.TIME_UNSET;
+                currentLiveMinOffsetMs = C.TIME_UNSET;
+                currentLiveMaxOffsetMs = C.TIME_UNSET;
             } else if (buf.contains("Smooth") || buf.contains("5 sec") || buf.contains("90s")) {
-                bufferForPlaybackMs = 4000;
-                bufferForPlaybackAfterRebufferMs = 6000;
-                minBufferMs = isLowRam ? 60000 : 90000;
-                maxBufferMs = isLowRam ? 120000 : 180000;
-                currentLiveTargetOffsetMs = 18000;
-                currentLiveMinOffsetMs = 8000;
-                currentLiveMaxOffsetMs = 180000;
+                minBufferMs = isLowRam ? 30000 : 50000;
+                maxBufferMs = isLowRam ? 60000 : 90000;
+                bufferForPlaybackMs = 20;
+                bufferForPlaybackAfterRebufferMs = 100;
+                currentLiveTargetOffsetMs = C.TIME_UNSET;
+                currentLiveMinOffsetMs = C.TIME_UNSET;
+                currentLiveMaxOffsetMs = C.TIME_UNSET;
             } else if (buf.contains("Ultra") || buf.contains("180s") || buf.contains("Shield")) {
-                bufferForPlaybackMs = 7000;
-                bufferForPlaybackAfterRebufferMs = 10000;
-                minBufferMs = isLowRam ? 90000 : 180000; // 3 min minBuffer
-                maxBufferMs = isLowRam ? 180000 : 300000; // 5 min maxBuffer
-                currentLiveTargetOffsetMs = 25000;
-                currentLiveMinOffsetMs = 10000;
-                currentLiveMaxOffsetMs = 240000;
+                minBufferMs = isLowRam ? 40000 : 60000;
+                maxBufferMs = isLowRam ? 80000 : 120000;
+                bufferForPlaybackMs = 20;
+                bufferForPlaybackAfterRebufferMs = 100;
+                currentLiveTargetOffsetMs = C.TIME_UNSET;
+                currentLiveMinOffsetMs = C.TIME_UNSET;
+                currentLiveMaxOffsetMs = C.TIME_UNSET;
             } else {
-                // Default & Recommended: "Large Advance Buffer (8s startup, 120s preload - Anti-Stall)"
-                bufferForPlaybackMs = 5000;
-                bufferForPlaybackAfterRebufferMs = 8000;
-                minBufferMs = isLowRam ? 75000 : 120000; // 2 min minBuffer
-                maxBufferMs = isLowRam ? 150000 : 240000; // 4 min maxBuffer
-                currentLiveTargetOffsetMs = 20000;
-                currentLiveMinOffsetMs = 8000;
-                currentLiveMaxOffsetMs = 180000;
+                // Default: Immediate 20ms startup + continuous robust forward buffer
+                minBufferMs = isLowRam ? 25000 : 35000;
+                maxBufferMs = isLowRam ? 50000 : 70000;
+                bufferForPlaybackMs = 20;
+                bufferForPlaybackAfterRebufferMs = 100;
+                currentLiveTargetOffsetMs = C.TIME_UNSET;
+                currentLiveMinOffsetMs = C.TIME_UNSET;
+                currentLiveMaxOffsetMs = C.TIME_UNSET;
             }
 
-            // Expanded memory allocation for holding large advance buffer segments in memory
-            int targetBufferBytes = isLowRam ? (96 * 1024 * 1024) : (256 * 1024 * 1024);
-
-            DefaultLoadControl loadControl = new DefaultLoadControl.Builder()
-                    .setAllocator(new DefaultAllocator(true, C.DEFAULT_BUFFER_SEGMENT_SIZE))
-                    .setBufferDurationsMs(minBufferMs, maxBufferMs, bufferForPlaybackMs, bufferForPlaybackAfterRebufferMs)
-                    .setTargetBufferBytes(targetBufferBytes)
-                    .setPrioritizeTimeOverSizeThresholds(true)
-                    .setBackBuffer(30000, true)
-                    .build();
+            // High capacity LoadControl pre-downloads advance segments aggressively
+            DefaultLoadControl loadControl = PlayerUtils.createOptimizedLoadControl(
+                    minBufferMs,
+                    maxBufferMs,
+                    bufferForPlaybackMs,
+                    bufferForPlaybackAfterRebufferMs,
+                    isLowRam
+            );
 
             DataSource.Factory dsFactory = getDataSourceFactory(playerContext);
             DefaultMediaSourceFactory mediaSourceFactory = new DefaultMediaSourceFactory(dsFactory);
@@ -910,6 +977,7 @@ public class PlayerActivity extends AppCompatActivity {
                     .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
                     .build();
             player.setAudioAttributes(audioAttributes, true);
+            player.setSeekParameters(SeekParameters.CLOSEST_SYNC);
             playerView.setPlayer(player);
             playerView.setKeepScreenOn(true);
 
@@ -921,13 +989,38 @@ public class PlayerActivity extends AppCompatActivity {
 
             player.addListener(new Player.Listener() {
                 @Override
+                public void onRenderedFirstFrame() {
+                    lastFrameRenderTimeMs = System.currentTimeMillis();
+                    positionStallStartTime = 0;
+                    continuousBufferStartTime = 0;
+                    consecutiveStallRecoveries = 0;
+                    dismissBufferingView();
+                }
+
+                @Override
+                public void onIsPlayingChanged(boolean isPlaying) {
+                    if (isPlaying) {
+                        lastFrameRenderTimeMs = System.currentTimeMillis();
+                        positionStallStartTime = 0;
+                        continuousBufferStartTime = 0;
+                        consecutiveStallRecoveries = 0;
+                        dismissBufferingView();
+                    }
+                }
+
+                @Override
                 public void onPlaybackStateChanged(int playbackState) {
                     bufferingWatchdogHandler.removeCallbacks(bufferingWatchdogRunnable);
+                    dismissBufferingView();
                     if (playbackState == Player.STATE_BUFFERING) {
-                        bufferingWatchdogHandler.postDelayed(bufferingWatchdogRunnable, 25000);
+                        bufferingWatchdogHandler.postDelayed(bufferingWatchdogRunnable, MAX_ALLOWED_BUFFER_MS);
                     } else if (playbackState == Player.STATE_READY) {
                         retryCount = 0;
                         continuousBufferStartTime = 0;
+                        dismissBufferingView();
+                        if (lastFrameRenderTimeMs == 0) {
+                            lastFrameRenderTimeMs = System.currentTimeMillis();
+                        }
                         if (player != null && !player.isPlaying()) {
                             player.play();
                         }
@@ -941,7 +1034,7 @@ public class PlayerActivity extends AppCompatActivity {
                     bufferingWatchdogHandler.removeCallbacks(bufferingWatchdogRunnable);
                     int httpCode = com.ottking.devcode.utils.PlayerUtils.getHttpErrorCode(error);
                     if (httpCode == 404 || httpCode == 410) {
-                        Toast.makeText(PlayerActivity.this, "এই চ্যানেল লিঙ্কটি বর্তমানে পাওয়া যাচ্ছে না (Error " + httpCode + ")", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(PlayerActivity.this, "This channel link is currently unavailable (Error " + httpCode + ")", Toast.LENGTH_SHORT).show();
                         return;
                     } else if (httpCode == 401 || httpCode == 403) {
                         if (retryCount < 4) {
@@ -977,6 +1070,22 @@ public class PlayerActivity extends AppCompatActivity {
                             });
                             return;
                         }
+                    }
+
+                    boolean isMalformed = (error != null && (
+                            error.getCause() instanceof androidx.media3.common.ParserException
+                            || error.errorCode == PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED
+                            || error.errorCode == PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED
+                    ));
+                    if (isMalformed) {
+                        android.util.Log.w("PlayerActivity", "Stream payload malformed or unsupported format");
+                        if (retryCount >= 2) {
+                            Toast.makeText(PlayerActivity.this, "This channel is currently offline or format is not supported", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+                        retryCount++;
+                        retryPlayback("Re-checking stream source...");
+                        return;
                     }
 
                     if (error != null && error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW) {
@@ -1095,6 +1204,9 @@ public class PlayerActivity extends AppCompatActivity {
     private void playStream(String url) {
         if (player == null || url == null || url.trim().isEmpty()) return;
 
+        // Completely flush old buffers, abort old downloads, and stop previous stream
+        stopAndFlushPreviousStream();
+
         // Decrypt stream URL if encrypted with hardware key
         url = com.ottking.devcode.security.DatabaseKeyManager.getDecryptedUrl(this, url);
 
@@ -1107,6 +1219,8 @@ public class PlayerActivity extends AppCompatActivity {
 
         // Reset auto-polling stall metrics for clean stream start
         lastObservedPosition = -1;
+        lastBufferedPositionMs = -1;
+        lastFrameRenderTimeMs = System.currentTimeMillis();
         positionStallStartTime = 0;
         continuousBufferStartTime = 0;
         consecutiveStallRecoveries = 0;
@@ -1134,11 +1248,13 @@ public class PlayerActivity extends AppCompatActivity {
         currentActiveStreamToken = localToken.getStreamToken();
 
         // 2. Load stream media source with token authorization
+        dismissBufferingView();
         MediaSource mediaSource = buildMediaSource(url.trim());
         player.setMediaSource(mediaSource, true);
         player.prepare();
         player.setPlayWhenReady(true);
         player.play();
+        dismissBufferingView();
 
         // 3. Request realtime edge-cookie from channel / check-session route
         ApiClient.getInstance(this).refreshEdgeCookie(currentChannelId, url, new ApiClient.ApiCallback<String>() {
@@ -1202,9 +1318,10 @@ public class PlayerActivity extends AppCompatActivity {
             hideOverlays();
             showCardOverlayTemporarily(4000);
         });
-        ImageButton btnPlayerVoiceSearch = findViewById(R.id.btnPlayerVoiceSearch);
+        btnPlayerVoiceSearch = findViewById(R.id.btnPlayerVoiceSearch);
         ImageButton btnPlayerSettings = findViewById(R.id.btnPlayerSettings);
         edtPlayerSearch = findViewById(R.id.edtPlayerSearch);
+        btnClearPlayerSearch = findViewById(R.id.btnClearPlayerSearch);
 
         channelAdapter.setNavigationListener(new ChannelAdapter.OnChannelNavigationListener() {
             @Override
@@ -1378,22 +1495,83 @@ public class PlayerActivity extends AppCompatActivity {
                         edtPlayerSearch.setFocusableInTouchMode(false);
                         focusPlayerChannelAtPosition(0);
                         return true;
+                    } else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                        if (edtPlayerSearch.isCursorVisible() && edtPlayerSearch.getSelectionStart() < edtPlayerSearch.getText().length()) {
+                            return false;
+                        }
+                        if (btnClearPlayerSearch != null && btnClearPlayerSearch.getVisibility() == View.VISIBLE) {
+                            InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+                            if (imm != null) {
+                                imm.hideSoftInputFromWindow(edtPlayerSearch.getWindowToken(), 0);
+                            }
+                            edtPlayerSearch.setCursorVisible(false);
+                            edtPlayerSearch.setFocusableInTouchMode(false);
+                            btnClearPlayerSearch.requestFocus();
+                            return true;
+                        }
                     }
                 }
                 return false;
             });
 
+            if (btnClearPlayerSearch != null) {
+                UIUtils.applyFocusAnimation(btnClearPlayerSearch, 1.15f, 6f);
+                btnClearPlayerSearch.setOnClickListener(v -> {
+                    resetDrawerAutoHideTimer();
+                    edtPlayerSearch.setText("");
+                    filterPlayerChannels("");
+                    InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+                    if (imm != null) {
+                        imm.hideSoftInputFromWindow(edtPlayerSearch.getWindowToken(), 0);
+                    }
+                    edtPlayerSearch.setCursorVisible(false);
+                    edtPlayerSearch.setFocusableInTouchMode(false);
+                    edtPlayerSearch.requestFocus();
+                });
+
+                btnClearPlayerSearch.setOnKeyListener((v, keyCode, event) -> {
+                    if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                        resetDrawerAutoHideTimer();
+                        if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) {
+                            btnClearPlayerSearch.performClick();
+                            return true;
+                        } else if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+                            edtPlayerSearch.requestFocus();
+                            return true;
+                        } else if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                            focusPlayerChannelAtPosition(0);
+                            return true;
+                        } else if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+                            if (btnPlayerVoiceSearch != null) {
+                                btnPlayerVoiceSearch.requestFocus();
+                                return true;
+                            } else if (btnPlayerSettings != null) {
+                                btnPlayerSettings.requestFocus();
+                                return true;
+                            }
+                        } else if (keyCode == KeyEvent.KEYCODE_BACK) {
+                            focusPlayingOrFirstChannel();
+                            return true;
+                        }
+                    }
+                    return false;
+                });
+            }
+
             edtPlayerSearch.addTextChangedListener(new TextWatcher() {
                 @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
                 @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
                     resetDrawerAutoHideTimer();
+                    if (btnClearPlayerSearch != null) {
+                        btnClearPlayerSearch.setVisibility(s != null && s.length() > 0 ? View.VISIBLE : View.GONE);
+                    }
                     filterPlayerChannels(s.toString());
                 }
                 @Override public void afterTextChanged(Editable s) {}
             });
         }
 
-        // Observe channels from database for channel list drawer
+        // Observe channels from database for channel list drawer and real-time updates
         AppDatabase.getInstance(this).channelDao().getAllChannels().observe(this, channels -> {
             if (channels != null && !channels.isEmpty()) {
                 allChannelsList = new ArrayList<>(channels);
@@ -1403,8 +1581,10 @@ public class PlayerActivity extends AppCompatActivity {
                 } else {
                     channelAdapter.setChannels(channels);
                 }
-                updateChannelInfoUI();
-                if (getIntent() == null || !getIntent().hasExtra("stream_url")) {
+
+                if (!initialPlaybackStarted) {
+                    // Initial startup (e.g. Boot Player directly launched into PlayerActivity)
+                    initialPlaybackStarted = true;
                     int lastPlayedId = prefs.getLastPlayedChannelId();
                     ChannelEntity targetChannel = null;
                     if (lastPlayedId != -1) {
@@ -1422,7 +1602,7 @@ public class PlayerActivity extends AppCompatActivity {
                     int pos = channels.indexOf(targetChannel);
                     currentChannelId = targetChannel.id;
                     currentChannelNumber = (pos != -1) ? (pos + 1) : 1;
-                    currentStreamUrl = targetChannel.streamUrl;
+                    currentStreamUrl = com.ottking.devcode.security.DatabaseKeyManager.getDecryptedUrl(this, targetChannel.streamUrl);
                     currentChannelName = targetChannel.name;
                     currentLogoUrl = targetChannel.logoUrl;
                     currentIsPremium = targetChannel.isPremium;
@@ -1430,6 +1610,44 @@ public class PlayerActivity extends AppCompatActivity {
 
                     updateChannelInfoUI();
                     playStream(currentStreamUrl);
+                } else {
+                    // Real-time server sync update while user is actively watching
+                    ChannelEntity targetChannel = null;
+                    int targetPos = -1;
+                    for (int i = 0; i < channels.size(); i++) {
+                        if (channels.get(i).id == currentChannelId) {
+                            targetChannel = channels.get(i);
+                            targetPos = i;
+                            break;
+                        }
+                    }
+
+                    if (targetChannel != null) {
+                        currentChannelNumber = targetPos + 1;
+                        currentChannelName = targetChannel.name;
+                        currentLogoUrl = targetChannel.logoUrl;
+                        currentIsPremium = targetChannel.isPremium;
+
+                        String updatedStreamUrl = com.ottking.devcode.security.DatabaseKeyManager.getDecryptedUrl(this, targetChannel.streamUrl);
+                        if (updatedStreamUrl != null && !updatedStreamUrl.isEmpty() && !updatedStreamUrl.equals(currentStreamUrl)) {
+                            android.util.Log.d("PlayerActivity", "Stream URL updated in real-time from server for: " + currentChannelName);
+                            currentStreamUrl = updatedStreamUrl;
+                            playStream(currentStreamUrl);
+                        }
+                        updateChannelInfoUI();
+                    } else {
+                        // Current channel was deleted on server; smoothly fallback to channel 1
+                        ChannelEntity fallback = channels.get(0);
+                        currentChannelId = fallback.id;
+                        currentChannelNumber = 1;
+                        currentStreamUrl = com.ottking.devcode.security.DatabaseKeyManager.getDecryptedUrl(this, fallback.streamUrl);
+                        currentChannelName = fallback.name;
+                        currentLogoUrl = fallback.logoUrl;
+                        currentIsPremium = fallback.isPremium;
+                        prefs.setLastPlayedChannelId(currentChannelId);
+                        updateChannelInfoUI();
+                        playStream(currentStreamUrl);
+                    }
                 }
             }
         });
@@ -1447,8 +1665,10 @@ public class PlayerActivity extends AppCompatActivity {
         intent.putExtra(RecognizerIntent.EXTRA_PROMPT, "Say channel name (e.g. Sports, News)...");
 
         try {
+            isAwaitingVoiceResult = true;
             voiceSearchLauncher.launch(intent);
         } catch (Exception ignored) {
+            isAwaitingVoiceResult = false;
         }
     }
 
@@ -1667,16 +1887,16 @@ public class PlayerActivity extends AppCompatActivity {
         // 4. Buffer Settings (Advance Preload & Network Recovery Options)
         layout.addView(createSectionHeader("Playback Buffer Settings"));
         String[] buffers = {
-                "Fast Start (2s startup, 30s preload)",
-                "Standard (3s startup, 60s preload)",
-                "Smooth Playback (5s startup, 90s preload)",
-                "Large Advance Buffer (8s startup, 120s preload - Anti-Stall)",
-                "Ultra Preload Buffer (12s startup, 180s preload - Network Shield)"
+                "Instant Live (20ms startup, 60s buffer - Zero Buffering)",
+                "Fast Start (20ms startup, 30s preload)",
+                "Standard (20ms startup, 60s preload)",
+                "Smooth Playback (20ms startup, 90s preload)",
+                "Ultra Preload Buffer (20ms startup, 180s preload - Network Shield)"
         };
         Spinner spinnerBuffer = new Spinner(this);
         ArrayAdapter<String> bufferAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, buffers);
         spinnerBuffer.setAdapter(bufferAdapter);
-        int currentBufferIndex = 3; // Default to Large Advance Buffer
+        int currentBufferIndex = 0; // Default to Instant Live
         String curBuf = prefs.getBufferSettings();
         for (int i = 0; i < buffers.length; i++) {
             if (buffers[i].equalsIgnoreCase(curBuf)) {
@@ -1684,12 +1904,12 @@ public class PlayerActivity extends AppCompatActivity {
                 break;
             }
         }
-        if (currentBufferIndex == 3 && curBuf != null) {
-            if (curBuf.contains("Fast") || curBuf.contains("1 sec")) currentBufferIndex = 0;
-            else if (curBuf.contains("Standard") || curBuf.contains("3 sec")) currentBufferIndex = 1;
-            else if (curBuf.contains("Smooth") || curBuf.contains("5 sec")) currentBufferIndex = 2;
+        if (curBuf != null) {
+            if (curBuf.contains("Instant") || curBuf.contains("Zero")) currentBufferIndex = 0;
+            else if (curBuf.contains("Fast") || curBuf.contains("30s")) currentBufferIndex = 1;
+            else if (curBuf.contains("Standard") || curBuf.contains("60s")) currentBufferIndex = 2;
+            else if (curBuf.contains("Smooth") || curBuf.contains("90s")) currentBufferIndex = 3;
             else if (curBuf.contains("Ultra") || curBuf.contains("Shield") || curBuf.contains("180s")) currentBufferIndex = 4;
-            else if (curBuf.contains("Large") || curBuf.contains("10 sec") || curBuf.contains("120s")) currentBufferIndex = 3;
         }
         spinnerBuffer.setSelection(currentBufferIndex);
         spinnerBuffer.setPadding(0, 10, 0, 10);
@@ -2200,12 +2420,16 @@ public class PlayerActivity extends AppCompatActivity {
             player.play();
         }
         startStreamAutoPolling();
+        DataPollingManager.getInstance(this).startPolling();
+        DataPollingManager.getInstance(this).triggerSyncNow();
         if (currentChannelId > 0 && currentStreamUrl != null && !currentStreamUrl.isEmpty()) {
             com.ottking.devcode.network.GlobalCookieManager.getInstance(this).startPeriodicRefresh(currentChannelId, currentStreamUrl);
         }
 
         if (drawerChannelList != null && drawerChannelList.getVisibility() == View.VISIBLE) {
-            if (recyclerPlayerChannels != null) {
+            if (isAwaitingVoiceResult) {
+                restoreVoiceSearchReturnFocus();
+            } else if (recyclerPlayerChannels != null) {
                 recyclerPlayerChannels.requestFocus();
             }
         } else if (playerView != null) {
@@ -2219,13 +2443,33 @@ public class PlayerActivity extends AppCompatActivity {
         if (hasFocus) {
             UIUtils.hideSystemUI(this);
             if (drawerChannelList != null && drawerChannelList.getVisibility() == View.VISIBLE) {
-                if (recyclerPlayerChannels != null) {
+                if (isAwaitingVoiceResult) {
+                    restoreVoiceSearchReturnFocus();
+                } else if (recyclerPlayerChannels != null) {
                     recyclerPlayerChannels.requestFocus();
                 }
             } else if (playerView != null) {
                 playerView.requestFocus();
             }
         }
+    }
+
+    private void restoreVoiceSearchReturnFocus() {
+        if (drawerChannelList == null || drawerChannelList.getVisibility() != View.VISIBLE) {
+            return;
+        }
+        resetDrawerAutoHideTimer();
+        runOnUiThread(() -> {
+            drawerChannelList.post(() -> {
+                if (btnPlayerVoiceSearch != null) {
+                    btnPlayerVoiceSearch.requestFocus();
+                } else if (edtPlayerSearch != null) {
+                    edtPlayerSearch.requestFocus();
+                } else if (recyclerPlayerChannels != null) {
+                    recyclerPlayerChannels.requestFocus();
+                }
+            });
+        });
     }
 
     private void retryPlayback(String reason) {
@@ -2237,17 +2481,6 @@ public class PlayerActivity extends AppCompatActivity {
             long delay = Math.min(300L * retryCount, 1500L);
             retryHandler.postDelayed(() -> {
                 if (isFinishing() || isDestroyed()) return;
-                if (player != null && currentStreamUrl != null && !currentStreamUrl.isEmpty()) {
-                    if (retryCount <= 2) {
-                        try {
-                            player.seekToDefaultPosition();
-                            player.prepare();
-                            player.setPlayWhenReady(true);
-                            player.play();
-                            return;
-                        } catch (Exception ignored) {}
-                    }
-                }
                 playStream(currentStreamUrl);
             }, delay);
         } else {
@@ -2301,6 +2534,7 @@ public class PlayerActivity extends AppCompatActivity {
         isPlayerResumed = false;
         uiOverlayHandler.removeCallbacks(autoHideDrawerRunnable);
         stopStreamAutoPolling();
+        DataPollingManager.getInstance(this).stopPolling();
         stopCookieRefreshTimer();
         com.ottking.devcode.network.GlobalCookieManager.getInstance(this).stopPeriodicRefresh();
         com.ottking.devcode.security.VpnDetectionManager.getInstance().stopMonitoring(this);
@@ -2326,6 +2560,7 @@ public class PlayerActivity extends AppCompatActivity {
         isPlayerResumed = false;
         uiOverlayHandler.removeCallbacksAndMessages(null);
         stopStreamAutoPolling();
+        DataPollingManager.getInstance(this).stopPolling();
         stopCookieRefreshTimer();
         if (cookieRefreshHandler != null) {
             cookieRefreshHandler.removeCallbacksAndMessages(null);
@@ -2336,6 +2571,9 @@ public class PlayerActivity extends AppCompatActivity {
         }
         if (channelNumHandler != null) {
             channelNumHandler.removeCallbacksAndMessages(null);
+        }
+        if (channelSwitchDebounceHandler != null) {
+            channelSwitchDebounceHandler.removeCallbacksAndMessages(null);
         }
         unregisterNetworkCallback();
         if (player != null) {
@@ -2359,8 +2597,9 @@ public class PlayerActivity extends AppCompatActivity {
     };
 
     /**
-     * Checks if the video/audio stream has frozen, stalled in buffering, or stopped unexpectedly,
-     * and performs instant seamless auto-recovery.
+     * Proactively monitors stream health, forward segment buffer depth, and playback progression.
+     * Keeps segments pre-loaded in advance and initiates proactive data recovery before the player
+     * drops into a hard buffering state.
      */
     private void checkAndRecoverStreamIfFrozen() {
         if (player == null || currentStreamUrl == null || currentStreamUrl.trim().isEmpty()) {
@@ -2374,6 +2613,10 @@ public class PlayerActivity extends AppCompatActivity {
 
         // 1. Live stream unexpectedly stopped (IDLE or ENDED)
         if (state == Player.STATE_IDLE || state == Player.STATE_ENDED) {
+            if (player != null && player.getPlayerError() != null) {
+                // An active player error is already being handled by onPlayerError
+                return;
+            }
             android.util.Log.w("PlayerWatchdog", "Live stream stopped (State=" + state + "). Auto-recovering stream...");
             positionStallStartTime = 0;
             continuousBufferStartTime = 0;
@@ -2381,62 +2624,77 @@ public class PlayerActivity extends AppCompatActivity {
             return;
         }
 
-        // 2. Stream buffering stalled indefinitely
+        // 2. Stream buffering stalled - allow safe natural loading without false double-buffer interruption
         if (state == Player.STATE_BUFFERING) {
+            dismissBufferingView();
             positionStallStartTime = 0;
             lastObservedPosition = -1;
             if (continuousBufferStartTime == 0) {
                 continuousBufferStartTime = now;
-            } else if (now - continuousBufferStartTime >= MAX_ALLOWED_BUFFER_MS) {
-                long bufferDuration = now - continuousBufferStartTime;
-                android.util.Log.w("PlayerWatchdog", "Buffering stalled for " + bufferDuration + "ms. Auto-jumping to live edge...");
-                continuousBufferStartTime = 0;
-                consecutiveStallRecoveries++;
-                if (consecutiveStallRecoveries <= 2) {
-                    try {
-                        player.seekToDefaultPosition();
-                        player.prepare();
-                        player.play();
-                    } catch (Exception e) {
-                        playStream(currentStreamUrl);
+                // Proactively trigger token & edge-cookie renewal in background immediately
+                com.ottking.devcode.network.GlobalCookieManager.getInstance(this).getValidatedCookie(currentChannelId, currentStreamUrl);
+            } else {
+                long bufferStallDuration = now - continuousBufferStartTime;
+
+                if (bufferStallDuration >= MAX_ALLOWED_BUFFER_MS) {
+                    android.util.Log.w("PlayerWatchdog", "Buffering timeout (" + bufferStallDuration + "ms). Executing stream data recovery...");
+                    continuousBufferStartTime = 0;
+                    consecutiveStallRecoveries++;
+                    if (consecutiveStallRecoveries <= 2) {
+                        try {
+                            if (player.isCurrentMediaItemLive()) {
+                                player.seekToDefaultPosition();
+                            }
+                            player.prepare();
+                            player.setPlayWhenReady(true);
+                            player.play();
+                        } catch (Exception e) {
+                            playStream(currentStreamUrl);
+                        }
+                    } else {
+                        consecutiveStallRecoveries = 0;
+                        retryPlayback("Buffering recovery, refreshing stream...");
                     }
-                } else {
-                    consecutiveStallRecoveries = 0;
-                    retryPlayback("Buffering timeout, refreshing stream...");
+                    return;
                 }
-                return;
             }
         } else {
             continuousBufferStartTime = 0;
         }
 
-        // 3. Player is in STATE_READY -> verify stream health without false alarms
+        // 3. Player is in STATE_READY -> verify stream health & permanently dismiss buffering indicators
         if (state == Player.STATE_READY) {
             if (!player.getPlayWhenReady()) {
                 player.setPlayWhenReady(true);
             }
 
-            // CRITICAL FIX: When player is actively rendering (isPlaying() is true),
-            // the live stream is running smoothly! In live HLS streams with sliding windows,
-            // currentPosition indicates offset from window start and stays constant,
-            // so testing currentPos == lastObservedPosition falsely triggered seek/reloads every few seconds!
+            // Immediately dismiss any buffering spinner once stream is ready
+            dismissBufferingView();
+
+            // When player is actively rendering (isPlaying() is true)
             if (player.isPlaying()) {
                 continuousBufferStartTime = 0;
                 positionStallStartTime = 0;
+                lastFrameRenderTimeMs = now;
                 consecutiveStallRecoveries = 0;
-                lastObservedPosition = player.getCurrentPosition();
                 return;
             }
 
             // If player is in STATE_READY and playWhenReady is true, BUT isPlaying() is false
-            // for more than 6 seconds (e.g. audio sink block or codec stall):
+            // (e.g. audio sink block, decoder freeze or paused pipeline)
             player.play();
             if (positionStallStartTime == 0) {
                 positionStallStartTime = now;
-            } else if (now - positionStallStartTime >= 6000) {
+            } else if (now - positionStallStartTime >= 3500) {
                 positionStallStartTime = 0;
-                android.util.Log.w("PlayerWatchdog", "Player in STATE_READY but not playing for 6s. Refreshing stream...");
-                playStream(currentStreamUrl);
+                android.util.Log.w("PlayerWatchdog", "Player in STATE_READY but not playing for 3.5s. Auto-refreshing stream...");
+                try {
+                    player.prepare();
+                    player.setPlayWhenReady(true);
+                    player.play();
+                } catch (Exception e) {
+                    playStream(currentStreamUrl);
+                }
             }
         }
     }

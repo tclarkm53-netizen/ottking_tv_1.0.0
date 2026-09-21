@@ -15,4 +15,22 @@ public class CategoryEntity {
         this.name = name;
         this.icon = icon;
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        CategoryEntity that = (CategoryEntity) o;
+        if (id != that.id) return false;
+        if (name != null ? !name.equals(that.name) : that.name != null) return false;
+        return icon != null ? icon.equals(that.icon) : that.icon == null;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = id;
+        result = 31 * result + (name != null ? name.hashCode() : 0);
+        result = 31 * result + (icon != null ? icon.hashCode() : 0);
+        return result;
+    }
 }

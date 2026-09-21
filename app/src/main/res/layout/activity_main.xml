@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/bg_dark"
@@ -34,13 +35,14 @@
                 android:layout_height="32dp"
                 android:layout_marginEnd="10dp"
                 android:contentDescription="Logo"
-                android:src="@drawable/img_app_icon" />
+                android:src="@drawable/img_app_icon" 
+                android:visibility="gone"/>
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:letterSpacing="0.08"
-                android:text="OTT KING"
+                android:text="@string/app_name"
                 android:textColor="@color/gold_primary"
                 android:textSize="20sp"
                 android:textStyle="bold" />
@@ -136,28 +138,52 @@
                 android:padding="10dp"
                 android:src="@drawable/ic_settings" />
 
-            <EditText
-                android:id="@+id/edtSearch"
-                android:layout_width="140dp"
+            <RelativeLayout
+                android:layout_width="wrap_content"
                 android:layout_height="38dp"
                 android:layout_marginEnd="6dp"
-                android:background="@drawable/selector_header_button"
-                android:drawableStart="@drawable/ic_search"
-                android:drawablePadding="8dp"
-                android:hint="Search channels..."
-                android:imeOptions="actionSearch"
-                android:inputType="text"
-                android:focusable="true"
-                android:focusableInTouchMode="false"
-                android:clickable="true"
-                android:nextFocusLeft="@+id/btnSettings"
-                android:nextFocusRight="@+id/edtSearch"
-                android:nextFocusDown="@+id/recyclerCategories"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp"
-                android:textColor="@color/white"
-                android:textColorHint="@color/text_secondary"
-                android:textSize="12sp" />
+                android:gravity="center_vertical">
+
+                <EditText
+                    android:id="@+id/edtSearch"
+                    android:layout_width="150dp"
+                    android:layout_height="38dp"
+                    android:background="@drawable/selector_header_button"
+                    android:drawableStart="@drawable/ic_search"
+                    android:drawablePadding="8dp"
+                    android:hint="Search channels..."
+                    android:imeOptions="actionSearch"
+                    android:inputType="text"
+                    android:focusable="true"
+                    android:focusableInTouchMode="false"
+                    android:clickable="true"
+                    android:nextFocusLeft="@+id/btnSettings"
+                    android:nextFocusRight="@+id/btnClearSearch"
+                    android:nextFocusDown="@+id/recyclerCategories"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="34dp"
+                    android:textColor="@color/white"
+                    android:textColorHint="@color/text_secondary"
+                    android:textSize="12sp" />
+
+                <ImageView
+                    android:id="@+id/btnClearSearch"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:layout_alignEnd="@id/edtSearch"
+                    android:layout_centerVertical="true"
+                    android:layout_marginEnd="3dp"
+                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/clear_search"
+                    android:focusable="true"
+                    android:clickable="true"
+                    android:padding="6dp"
+                    android:src="@drawable/ic_close"
+                    android:visibility="gone"
+                    android:nextFocusLeft="@+id/edtSearch"
+                    android:nextFocusDown="@+id/recyclerCategories" />
+
+            </RelativeLayout>
 
         </LinearLayout>
 
@@ -295,15 +321,77 @@
 
             </LinearLayout>
 
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/recyclerChannels"
+            <FrameLayout
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:clipChildren="false"
-                android:clipToPadding="false"
-                android:focusable="false"
-                android:descendantFocusability="afterDescendants"
-                android:scrollbars="vertical" />
+                android:layout_height="match_parent">
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/recyclerChannels"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:clipChildren="false"
+                    android:clipToPadding="false"
+                    android:focusable="false"
+                    android:descendantFocusability="afterDescendants"
+                    android:scrollbars="vertical" />
+
+                <!-- Empty State: No Channels Found -->
+                <LinearLayout
+                    android:id="@+id/layoutNoChannels"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="24dp"
+                    android:visibility="gone">
+
+                    <ImageView
+                        android:layout_width="64dp"
+                        android:layout_height="64dp"
+                        android:layout_marginBottom="12dp"
+                        android:contentDescription="No Channels"
+                        android:src="@drawable/ic_tv"
+                        app:tint="@color/text_muted" />
+
+                    <TextView
+                        android:id="@+id/txtNoChannelsTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/title_no_channels_found"
+                        android:textColor="@color/white"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/txtNoChannelsMessage"
+                        android:layout_width="280dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:gravity="center"
+                        android:text="@string/msg_no_channels_found"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
+
+                    <Button
+                        android:id="@+id/btnRetrySyncChannels"
+                        android:layout_width="wrap_content"
+                        android:layout_height="38dp"
+                        android:layout_marginTop="16dp"
+                        android:background="@drawable/btn_retry_selector"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:minWidth="120dp"
+                        android:paddingStart="16dp"
+                        android:paddingEnd="16dp"
+                        android:text="@string/btn_retry"
+                        android:textColor="@color/white"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+
+                </LinearLayout>
+
+            </FrameLayout>
 
         </LinearLayout>
 

@@ -70,7 +70,7 @@ public class AppNotificationManager {
                     list.add(new NotificationItem(
                             chanId,
                             "New Channel Added",
-                            "Synced " + channelCount + " HD & 4K streams (Sports, News, Movies) from OTT KING server.",
+                            "Synced " + channelCount + " HD & 4K streams (Sports, News, Movies) from  server.",
                             "Today",
                             R.drawable.ic_tv,
                             "CHANNEL",

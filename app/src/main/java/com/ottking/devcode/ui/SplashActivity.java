@@ -63,7 +63,7 @@ public class SplashActivity extends AppCompatActivity {
         if (btnSplashRetry != null) {
             btnSplashRetry.setOnFocusChangeListener((v, hasFocus) -> UIUtils.animateFocus(v, hasFocus, 1.06f, 10f));
             btnSplashRetry.setOnClickListener(v -> {
-                showLoadingState("পুনরায় সার্ভারের সাথে সংযোগ স্থাপন করা হচ্ছে...");
+                showLoadingState("Reconnecting to server...");
                 handler.postDelayed(this::performNetworkAndServerSync, 400);
             });
         }
@@ -118,7 +118,7 @@ public class SplashActivity extends AppCompatActivity {
     }
 
     private void performNetworkAndServerSync() {
-        showLoadingState("ইন্টারনেট ও সার্ভার সংযোগ যাচাই করা হচ্ছে...");
+        showLoadingState("Checking internet and server connection...");
 
         // VPN & Proxy Check
         if (com.ottking.devcode.security.VpnDetectionManager.isVpnOrProxyActive(this)) {
@@ -129,8 +129,8 @@ public class SplashActivity extends AppCompatActivity {
         // 1. Check if device has an active network connection
         if (!NetworkUtils.isNetworkConnected(this)) {
             showErrorState(
-                    "ইন্টারনেট সংযোগ পাওয়া যায়নি (No Network)",
-                    "আপনার ডিভাইসে কোনো ইন্টারনেট সংযোগ নেই। দয়া করে আপনার Wi-Fi, Ethernet বা মোবাইল ডেটা অন করে পুনরায় চেষ্টা করুন।"
+                    "No Internet Connection (No Network)",
+                    "Your device is not connected to the internet. Please turn on Wi-Fi, Ethernet, or mobile data and try again."
             );
             return;
         }
@@ -190,6 +190,17 @@ public class SplashActivity extends AppCompatActivity {
             }
             finish();
         }
+    }
+
+    @Override
+    protected void onDestroy() {
+        handler.removeCallbacksAndMessages(null);
+        if (lottieSplashLoader != null) {
+            try {
+                lottieSplashLoader.cancelAnimation();
+            } catch (Exception ignored) {}
+        }
+        super.onDestroy();
     }
 
     @Override

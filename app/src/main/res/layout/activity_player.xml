@@ -35,7 +35,7 @@
             android:layout_height="48dp"
             android:contentDescription="Channel Logo"
             android:scaleType="fitCenter"
-            android:src="@drawable/img_splash_bg" />
+            android:src="@drawable/img_app_icon" />
 
         <LinearLayout
             android:layout_width="wrap_content"
@@ -166,22 +166,44 @@
 
         </LinearLayout>
 
-        <EditText
-            android:id="@+id/edtPlayerSearch"
+        <RelativeLayout
             android:layout_width="match_parent"
             android:layout_height="38dp"
             android:layout_marginTop="8dp"
-            android:background="@drawable/selector_pill_focus"
-            android:drawableStart="@drawable/ic_search"
-            android:drawablePadding="8dp"
-            android:hint="Filter channels..."
-            android:imeOptions="actionSearch"
-            android:inputType="text"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            android:textColor="@color/white"
-            android:textColorHint="@color/text_secondary"
-            android:textSize="12sp" />
+            android:gravity="center_vertical">
+
+            <EditText
+                android:id="@+id/edtPlayerSearch"
+                android:layout_width="match_parent"
+                android:layout_height="38dp"
+                android:background="@drawable/selector_pill_focus"
+                android:drawableStart="@drawable/ic_search"
+                android:drawablePadding="8dp"
+                android:hint="Filter channels..."
+                android:imeOptions="actionSearch"
+                android:inputType="text"
+                android:paddingStart="12dp"
+                android:paddingEnd="36dp"
+                android:textColor="@color/white"
+                android:textColorHint="@color/text_secondary"
+                android:textSize="12sp" />
+
+            <ImageView
+                android:id="@+id/btnClearPlayerSearch"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_alignParentEnd="true"
+                android:layout_centerVertical="true"
+                android:layout_marginEnd="4dp"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/clear_search"
+                android:focusable="true"
+                android:clickable="true"
+                android:padding="6dp"
+                android:src="@drawable/ic_close"
+                android:visibility="gone" />
+
+        </RelativeLayout>
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/recyclerPlayerChannels"

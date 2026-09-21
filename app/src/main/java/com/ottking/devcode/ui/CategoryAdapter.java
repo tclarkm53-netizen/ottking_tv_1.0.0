@@ -43,6 +43,15 @@ public class CategoryAdapter extends RecyclerView.Adapter<CategoryAdapter.Catego
 
     public CategoryAdapter(OnCategoryClickListener listener) {
         this.listener = listener;
+        setHasStableIds(true);
+    }
+
+    @Override
+    public long getItemId(int position) {
+        if (position >= 0 && position < categoryList.size()) {
+            return categoryList.get(position).id;
+        }
+        return RecyclerView.NO_ID;
     }
 
     public void setNavigationListener(OnCategoryNavigationListener navigationListener) {
@@ -154,29 +163,46 @@ public class CategoryAdapter extends RecyclerView.Adapter<CategoryAdapter.Catego
 
     public void setSelectedPosition(int position) {
         if (position >= 0 && position < categoryList.size()) {
+            int prev = this.selectedPosition;
             this.selectedPosition = position;
+            if (prev != position) {
+                notifyItemChanged(prev);
+                notifyItemChanged(position);
+            }
         }
     }
 
     public void setCategories(List<CategoryEntity> categories) {
         if (categories == null) return;
-        if (this.categoryList.size() == categories.size()) {
-            boolean same = true;
-            for (int i = 0; i < categories.size(); i++) {
-                CategoryEntity oldItem = this.categoryList.get(i);
-                CategoryEntity newItem = categories.get(i);
-                if (oldItem.id != newItem.id || (oldItem.name != null && !oldItem.name.equals(newItem.name))) {
-                    same = false;
-                    break;
-                }
+        List<CategoryEntity> oldList = new ArrayList<>(this.categoryList);
+        List<CategoryEntity> newList = new ArrayList<>(categories);
+        androidx.recyclerview.widget.DiffUtil.DiffResult diffResult = androidx.recyclerview.widget.DiffUtil.calculateDiff(new androidx.recyclerview.widget.DiffUtil.Callback() {
+            @Override
+            public int getOldListSize() {
+                return oldList.size();
             }
-            if (same) {
-                return;
+
+            @Override
+            public int getNewListSize() {
+                return newList.size();
             }
-        }
+
+            @Override
+            public boolean areItemsTheSame(int oldItemPosition, int newItemPosition) {
+                return oldList.get(oldItemPosition).id == newList.get(newItemPosition).id;
+            }
+
+            @Override
+            public boolean areContentsTheSame(int oldItemPosition, int newItemPosition) {
+                CategoryEntity oldItem = oldList.get(oldItemPosition);
+                CategoryEntity newItem = newList.get(newItemPosition);
+                return oldItem.equals(newItem);
+            }
+        });
+
         this.categoryList.clear();
-        this.categoryList.addAll(categories);
-        notifyDataSetChanged();
+        this.categoryList.addAll(newList);
+        diffResult.dispatchUpdatesTo(this);
     }
 
     @NonNull

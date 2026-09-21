@@ -66,4 +66,16 @@ public class UIUtils {
                 .setInterpolator(new android.view.animation.DecelerateInterpolator())
                 .start();
     }
+
+    /**
+     * Validates whether a logo/image URL string is non-null, non-empty, and has a valid http/https scheme.
+     */
+    public static boolean isValidImageUrl(String url) {
+        if (url == null) return false;
+        String trimmed = url.trim();
+        if (trimmed.isEmpty() || "null".equalsIgnoreCase(trimmed) || "undefined".equalsIgnoreCase(trimmed)) {
+            return false;
+        }
+        return trimmed.startsWith("http://") || trimmed.startsWith("https://") || trimmed.startsWith("file://") || trimmed.startsWith("content://");
+    }
 }

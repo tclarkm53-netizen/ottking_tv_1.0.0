@@ -1,6 +1,6 @@
 plugins {
   alias(libs.plugins.android.application)
-  alias(libs.plugins.kotlin.compose)
+  // alias(libs.plugins.kotlin.compose)
   alias(libs.plugins.google.devtools.ksp)
   alias(libs.plugins.roborazzi)
   alias(libs.plugins.secrets)
@@ -16,6 +16,9 @@ android {
     targetSdk = 35
     versionCode = 1
     versionName = "1.0"
+
+    // Only bundle needed language resources to shrink resources.arsc
+    resourceConfigurations += listOf("en", "bn")
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -53,7 +56,10 @@ android {
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
       signingConfig = signingConfigs.getByName("release")
     }
-    debug { signingConfig = signingConfigs.getByName("debugConfig") }
+    debug {
+      isMinifyEnabled = false
+      signingConfig = signingConfigs.getByName("debugConfig")
+    }
   }
 
   packaging {
@@ -62,10 +68,31 @@ android {
         "META-INF/DEPENDENCIES",
         "META-INF/LICENSE",
         "META-INF/LICENSE.txt",
+        "META-INF/license.txt",
         "META-INF/NOTICE",
         "META-INF/NOTICE.txt",
-        "META-INF/*.kotlin_module"
+        "META-INF/notice.txt",
+        "META-INF/ASL2.0",
+        "META-INF/*.kotlin_module",
+        "META-INF/INDEX.LIST",
+        "META-INF/io.netty.versions.properties",
+        "DebugProbesKt.bin",
+        "**/*.version",
+        "**/*.properties"
       )
+    }
+    jniLibs {
+      // Compress native .so libraries to achieve minimal APK download size
+      useLegacyPackaging = true
+    }
+    
+  }
+   splits {
+    abi {
+      isEnable = true
+      reset()
+      include("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+      isUniversalApk = true
     }
   }
 
@@ -75,7 +102,7 @@ android {
     targetCompatibility = JavaVersion.VERSION_11
   }
   buildFeatures {
-    compose = true
+    compose = false
     buildConfig = true
   }
   testOptions { unitTests { isIncludeAndroidResources = true } }
@@ -88,8 +115,7 @@ secrets {
   defaultPropertiesFileName = ".env.example"
 }
 
-// Some unused dependencies are commented out below instead of being removed.
-// This makes it easy to add them back in the future if needed.
+// Unused dependencies commented out to minimize APK size
 dependencies {
   implementation(libs.androidx.appcompat)
   implementation(libs.com.google.android.material)
@@ -104,53 +130,50 @@ dependencies {
   implementation(libs.glide)
   implementation(libs.lottie)
 
-  implementation(platform(libs.androidx.compose.bom))
+  // Unused Compose dependencies commented out to drastically reduce DEX and APK size
+  // implementation(platform(libs.androidx.compose.bom))
   // implementation(libs.accompanist.permissions)
-  implementation(libs.androidx.activity.compose)
+  // implementation(libs.androidx.activity.compose)
   // implementation(libs.androidx.camera.camera2)
   // implementation(libs.androidx.camera.core)
   // implementation(libs.androidx.camera.lifecycle)
   // implementation(libs.androidx.camera.view)
-  implementation(libs.androidx.compose.material.icons.core)
-  implementation(libs.androidx.compose.material.icons.extended)
-  implementation(libs.androidx.compose.material3)
-  implementation(libs.androidx.compose.ui)
-  implementation(libs.androidx.compose.ui.graphics)
-  implementation(libs.androidx.compose.ui.tooling.preview)
+  // implementation(libs.androidx.compose.material.icons.core)
+  // implementation(libs.androidx.compose.material.icons.extended)
+  // implementation(libs.androidx.compose.material3)
+  // implementation(libs.androidx.compose.ui)
+  // implementation(libs.androidx.compose.ui.graphics)
+  // implementation(libs.androidx.compose.ui.tooling.preview)
   implementation(libs.androidx.core.ktx)
   // implementation(libs.androidx.datastore.preferences)
-  implementation(libs.androidx.lifecycle.runtime.compose)
+  // implementation(libs.androidx.lifecycle.runtime.compose)
   implementation(libs.androidx.lifecycle.runtime.ktx)
-  implementation(libs.androidx.lifecycle.viewmodel.compose)
+  // implementation(libs.androidx.lifecycle.viewmodel.compose)
   // implementation(libs.androidx.navigation.compose)
   implementation(libs.androidx.room.ktx)
   implementation(libs.androidx.room.runtime)
-  implementation(libs.sqlcipher)
+  // implementation(libs.sqlcipher)
   // implementation(libs.coil.compose)
-  implementation(libs.converter.moshi)
+  // implementation(libs.converter.moshi)
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)
   implementation(libs.logging.interceptor)
-  implementation(libs.moshi.kotlin)
+  // implementation(libs.moshi.kotlin)
   implementation(libs.okhttp)
   // implementation(libs.play.services.location)
-  implementation(libs.retrofit)
-  testImplementation(libs.androidx.compose.ui.test.junit4)
+  // implementation(libs.retrofit)
+
   testImplementation(libs.androidx.core)
   testImplementation(libs.androidx.junit)
   testImplementation(libs.junit)
   testImplementation(libs.kotlinx.coroutines.test)
   testImplementation(libs.robolectric)
   testImplementation(libs.roborazzi)
-  testImplementation(libs.roborazzi.compose)
   testImplementation(libs.roborazzi.junit.rule)
-  androidTestImplementation(platform(libs.androidx.compose.bom))
-  androidTestImplementation(libs.androidx.compose.ui.test.junit4)
   androidTestImplementation(libs.androidx.espresso.core)
   androidTestImplementation(libs.androidx.junit)
   androidTestImplementation(libs.androidx.runner)
-  debugImplementation(libs.androidx.compose.ui.test.manifest)
-  debugImplementation(libs.androidx.compose.ui.tooling)
+
   "ksp"(libs.androidx.room.compiler)
-  "ksp"(libs.moshi.kotlin.codegen)
+  // "ksp"(libs.moshi.kotlin.codegen)
 }

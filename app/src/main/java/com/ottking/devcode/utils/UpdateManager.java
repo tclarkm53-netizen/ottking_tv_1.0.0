@@ -109,7 +109,7 @@ public class UpdateManager {
         layout.addView(txtSpeed);
 
         final Dialog downloadDialog = new CustomDialog.Builder(activity)
-                .setTitle("Downloading OTT KING v" + versionName)
+                .setTitle("Downloading  v" + versionName)
                 .setView(layout)
                 .setWidthPercent(0.95f)
                 .setCancelable(false)
@@ -265,7 +265,7 @@ public class UpdateManager {
             if (!activity.getPackageManager().canRequestPackageInstalls()) {
                 new CustomDialog.Builder(activity)
                         .setTitle("Permission Required")
-                        .setMessage("OTT KING requires permission to install app updates.\n\nPlease enable 'Install Unknown Apps' for OTT KING on the next screen.")
+                        .setMessage("requires permission to install app updates.\n\nPlease enable 'Install Unknown Apps' for OTT KING on the next screen.")
                         .setWidthPercent(0.95f)
                         .setPositiveButton("Grant Permission", dialog -> {
                             dialog.dismiss();

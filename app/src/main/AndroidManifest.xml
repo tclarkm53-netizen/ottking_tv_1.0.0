@@ -17,7 +17,8 @@
 
     <application
         android:allowBackup="true"
-        android:banner="@drawable/img_app_icon"
+        android:hardwareAccelerated="true"
+        android:banner="@drawable/img_app_banner"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
@@ -47,18 +48,21 @@
             android:name=".ui.MainActivity"
             android:exported="false"
             android:screenOrientation="landscape"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|uiMode"
             android:theme="@style/Theme.OttKing" />
 
         <activity
             android:name=".ui.SettingsActivity"
             android:exported="false"
             android:screenOrientation="landscape"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|uiMode"
             android:theme="@style/Theme.OttKing" />
 
         <activity
             android:name=".ui.PlayerActivity"
             android:exported="false"
             android:screenOrientation="landscape"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|uiMode"
             android:theme="@style/Theme.OttKing" />
 
         <provider

@@ -397,31 +397,31 @@ public class SettingsActivity extends AppCompatActivity {
             });
         }
 
-        // 4. Buffer Setup (Advance Preload & Network Recovery Options)
+        // 4. Buffer Setup (Smooth Live & Anti-Stall Presets)
         String[] buffers = {
-                "Fast Start (2s startup, 30s preload)",
-                "Standard (3s startup, 60s preload)",
-                "Smooth Playback (5s startup, 90s preload)",
-                "Large Advance Buffer (8s startup, 120s preload - Anti-Stall)",
-                "Ultra Preload Buffer (12s startup, 180s preload - Network Shield)"
+                "Fast Start (1.2s startup, 25s buffer)",
+                "Standard (1.5s startup, 30s buffer)",
+                "Smooth Live (1.5s startup, 30s buffer - Recommended)",
+                "Anti-Stall Stable (1.8s startup, 35s buffer)",
+                "Ultra Shield (2.5s startup, 45s buffer - High Jitter)"
         };
         ArrayAdapter<String> bufferAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, buffers);
         if (spinnerPlayerBuffer != null) {
             spinnerPlayerBuffer.setAdapter(bufferAdapter);
             String curBuf = prefs.getBufferSettings();
-            int curBufIdx = 3; // Default to Large Advance Buffer (Anti-Stall)
+            int curBufIdx = 2; // Default to Smooth Live (Recommended)
             for (int i = 0; i < buffers.length; i++) {
                 if (buffers[i].equalsIgnoreCase(curBuf)) {
                     curBufIdx = i;
                     break;
                 }
             }
-            if (curBufIdx == 3 && curBuf != null) {
-                if (curBuf.contains("Fast") || curBuf.contains("1 sec")) curBufIdx = 0;
+            if (curBufIdx == 2 && curBuf != null) {
+                if (curBuf.contains("Fast") || curBuf.contains("1 sec") || curBuf.contains("1.2s")) curBufIdx = 0;
                 else if (curBuf.contains("Standard") || curBuf.contains("3 sec")) curBufIdx = 1;
-                else if (curBuf.contains("Smooth") || curBuf.contains("5 sec")) curBufIdx = 2;
-                else if (curBuf.contains("Ultra") || curBuf.contains("Shield") || curBuf.contains("180s")) curBufIdx = 4;
-                else if (curBuf.contains("Large") || curBuf.contains("10 sec") || curBuf.contains("120s")) curBufIdx = 3;
+                else if (curBuf.contains("Anti-Stall") || curBuf.contains("Large") || curBuf.contains("1.8s")) curBufIdx = 3;
+                else if (curBuf.contains("Ultra") || curBuf.contains("Shield") || curBuf.contains("2.5s")) curBufIdx = 4;
+                else if (curBuf.contains("Smooth")) curBufIdx = 2;
             }
             spinnerPlayerBuffer.setSelection(curBufIdx);
             spinnerPlayerBuffer.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {

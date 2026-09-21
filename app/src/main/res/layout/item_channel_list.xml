@@ -17,8 +17,8 @@
         android:layout_width="48dp"
         android:layout_height="36dp"
         android:contentDescription="Channel Logo"
-        android:scaleType="centerCrop"
-        android:src="@drawable/img_splash_bg" />
+        android:scaleType="fitCenter"
+        android:src="@drawable/img_app_icon" />
 
     <!-- Channel Info (Number & Name) -->
     <LinearLayout

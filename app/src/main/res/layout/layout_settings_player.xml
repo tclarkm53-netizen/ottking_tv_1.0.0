@@ -137,7 +137,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
-                    android:text="Use GPU hardware decoding for smooth 60fps playback."
+                    android:text="Disabled by default for smooth playback without buffering. Enable if needed."
                     android:textColor="@color/text_secondary"
                     android:textSize="12sp" />
 

@@ -186,11 +186,11 @@ public class AppPreferences {
         prefs.edit().putString("retry_settings", retry).apply();
     }
 
-    public static final String DEFAULT_BUFFER_SETTING = "Large Advance Buffer (8s startup, 120s preload - Anti-Stall)";
+    public static final String DEFAULT_BUFFER_SETTING = "Instant Live (20ms startup, 60s buffer - Zero Buffering)";
 
     public String getBufferSettings() {
         String current = prefs.getString("buffer_settings", DEFAULT_BUFFER_SETTING);
-        if (current == null || current.isEmpty() || current.equals("Standard (3 sec)")) {
+        if (current == null || current.isEmpty()) {
             return DEFAULT_BUFFER_SETTING;
         }
         return current;

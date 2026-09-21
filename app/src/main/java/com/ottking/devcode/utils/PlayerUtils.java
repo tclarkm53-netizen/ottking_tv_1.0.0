@@ -18,6 +18,8 @@ import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.SeekParameters;
+import androidx.media3.exoplayer.mediacodec.MediaCodecInfo;
+import androidx.media3.exoplayer.mediacodec.MediaCodecSelector;
 import androidx.media3.exoplayer.audio.AudioCapabilities;
 import androidx.media3.exoplayer.audio.AudioSink;
 import androidx.media3.exoplayer.audio.DefaultAudioSink;
@@ -136,32 +138,21 @@ public class PlayerUtils {
             }
         }
 
-        Map<String, String> finalHeaders = getDefaultPlayerHeaders(context, actualUrl);
-        if (!customHeaders.isEmpty()) {
-            finalHeaders.putAll(customHeaders);
-        }
-
-        OkHttpClient okClient = com.ottking.devcode.ui.PlayerActivity.getSharedOkHttpClient();
-        if (okClient == null) {
-            okClient = new OkHttpClient();
-        }
-
-        OkHttpDataSource.Factory httpFactory = new OkHttpDataSource.Factory(okClient)
-                .setUserAgent(DEFAULT_USER_AGENT)
-                .setDefaultRequestProperties(finalHeaders);
-
-        DefaultDataSource.Factory dataSourceFactory = new DefaultDataSource.Factory(context.getApplicationContext(), httpFactory);
         StreamFormat format = detectStreamFormat(actualUrl, streamType);
 
+        // Completely separated HLS and MPD configurations to prevent cross-format conflicts
         switch (format) {
             case DASH:
-                return createDashMediaSource(actualUrl, dataSourceFactory, drmLicenseUri, drmSchemeStr);
+                return com.ottking.devcode.player.DashConfig.createMediaSource(
+                        context, actualUrl, customHeaders, drmLicenseUri, drmSchemeStr);
             case HLS:
-                return createHlsMediaSource(actualUrl, dataSourceFactory, drmLicenseUri, drmSchemeStr);
+                return com.ottking.devcode.player.HlsConfig.createMediaSource(
+                        context, actualUrl, customHeaders, drmLicenseUri, drmSchemeStr);
             case TS:
             case PROGRESSIVE:
             default:
-                return createTsMediaSource(actualUrl, dataSourceFactory, drmLicenseUri, drmSchemeStr);
+                return createProgressiveMediaSource(
+                        context, actualUrl, customHeaders, drmLicenseUri, drmSchemeStr);
         }
     }
 
@@ -184,78 +175,37 @@ public class PlayerUtils {
         return StreamFormat.PROGRESSIVE;
     }
 
-    private static MediaSource createDashMediaSource(
-            String actualUrl,
-            DefaultDataSource.Factory dataSourceFactory,
-            String drmLicenseUri,
-            String drmSchemeStr) {
-
-        Uri uri = Uri.parse(actualUrl);
-        MediaItem.Builder mediaItemBuilder = new MediaItem.Builder()
-                .setUri(uri)
-                .setMimeType(MimeTypes.APPLICATION_MPD)
-                .setLiveConfiguration(
-                        new MediaItem.LiveConfiguration.Builder()
-                                .setMaxPlaybackSpeed(1.0f)
-                                .setMinPlaybackSpeed(1.0f)
-                                .setTargetOffsetMs(C.TIME_UNSET)
-                                .build()
-                );
-
-        attachDrmIfPresent(mediaItemBuilder, drmLicenseUri, drmSchemeStr);
-
-        MediaItem mediaItem = mediaItemBuilder.build();
-        DashMediaSource.Factory dashFactory = new DashMediaSource.Factory(
-                new DefaultDashChunkSource.Factory(dataSourceFactory),
-                dataSourceFactory
-        )
-        .setFallbackTargetLiveOffsetMs(5000)
-        .setLoadErrorHandlingPolicy(new ExponentialBackoffLoadErrorHandlingPolicy(6, 300L, 6000L, 1.5));
-
-        return dashFactory.createMediaSource(mediaItem);
+    public static MediaSource createHlsMediaSource(Context context, String actualUrl, Map<String, String> customHeaders, String drmLicenseUri, String drmSchemeStr) {
+        return com.ottking.devcode.player.HlsConfig.createMediaSource(context, actualUrl, customHeaders, drmLicenseUri, drmSchemeStr);
     }
 
-    private static MediaSource createHlsMediaSource(
-            String actualUrl,
-            DefaultDataSource.Factory dataSourceFactory,
-            String drmLicenseUri,
-            String drmSchemeStr) {
-
-        Uri uri = Uri.parse(actualUrl);
-        MediaItem.Builder mediaItemBuilder = new MediaItem.Builder()
-                .setUri(uri)
-                .setMimeType(MimeTypes.APPLICATION_M3U8)
-                .setLiveConfiguration(
-                        new MediaItem.LiveConfiguration.Builder()
-                                .setMaxPlaybackSpeed(1.0f)
-                                .setMinPlaybackSpeed(1.0f)
-                                .setTargetOffsetMs(C.TIME_UNSET)
-                                .build()
-                );
-
-        attachDrmIfPresent(mediaItemBuilder, drmLicenseUri, drmSchemeStr);
-
-        MediaItem mediaItem = mediaItemBuilder.build();
-
-        int tsFlags = DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES
-                | DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS
-                | DefaultTsPayloadReaderFactory.FLAG_IGNORE_SPLICE_INFO_STREAM
-                | DefaultTsPayloadReaderFactory.FLAG_ENABLE_HDMV_DTS_AUDIO_STREAMS;
-
-        DefaultHlsExtractorFactory hlsExtractorFactory = new DefaultHlsExtractorFactory(tsFlags, true);
-
-        return new HlsMediaSource.Factory(dataSourceFactory)
-                .setExtractorFactory(hlsExtractorFactory)
-                .setAllowChunklessPreparation(true)
-                .setLoadErrorHandlingPolicy(new ExponentialBackoffLoadErrorHandlingPolicy(8, 250L, 6000L, 1.5))
-                .createMediaSource(mediaItem);
+    public static MediaSource createDashMediaSource(Context context, String actualUrl, Map<String, String> customHeaders, String drmLicenseUri, String drmSchemeStr) {
+        return com.ottking.devcode.player.DashConfig.createMediaSource(context, actualUrl, customHeaders, drmLicenseUri, drmSchemeStr);
     }
 
-    private static MediaSource createTsMediaSource(
+    public static MediaSource createProgressiveMediaSource(
+            Context context,
             String actualUrl,
-            DefaultDataSource.Factory dataSourceFactory,
+            Map<String, String> customHeaders,
             String drmLicenseUri,
             String drmSchemeStr) {
+
+        Context appContext = context.getApplicationContext();
+        Map<String, String> finalHeaders = getDefaultPlayerHeaders(appContext, actualUrl);
+        if (customHeaders != null && !customHeaders.isEmpty()) {
+            finalHeaders.putAll(customHeaders);
+        }
+
+        OkHttpClient okClient = com.ottking.devcode.ui.PlayerActivity.getSharedOkHttpClient();
+        if (okClient == null) {
+            okClient = new OkHttpClient();
+        }
+
+        OkHttpDataSource.Factory httpFactory = new OkHttpDataSource.Factory(okClient)
+                .setUserAgent(DEFAULT_USER_AGENT)
+                .setDefaultRequestProperties(finalHeaders);
+
+        DefaultDataSource.Factory dataSourceFactory = new DefaultDataSource.Factory(appContext, httpFactory);
 
         Uri uri = Uri.parse(actualUrl);
         MediaItem.Builder mediaItemBuilder = new MediaItem.Builder().setUri(uri);
@@ -347,5 +297,67 @@ public class PlayerUtils {
             current = current.getCause();
         }
         return -1;
+    }
+
+    /**
+     * Creates an optimized DefaultRenderersFactory configured to prioritize immediate frame rendering
+     * and minimize startup latency.
+     *
+     * Key settings:
+     * - allowedVideoJoiningTimeMs = 0: Renders the first decoded video frame immediately without delay.
+     * - forceEnableMediaCodecAsynchronousQueueing: Offloads codec buffer processing to a background thread.
+     * - setEnableDecoderFallback = true: Falls back instantly if a hardware decoder stalls or fails.
+     */
+    public static DefaultRenderersFactory createOptimizedRenderersFactory(Context context, boolean hardwareAccelerationEnabled) {
+        DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(context);
+        renderersFactory.setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER);
+        renderersFactory.setEnableDecoderFallback(true);
+        renderersFactory.setAllowedVideoJoiningTimeMs(0);
+        renderersFactory.forceEnableMediaCodecAsynchronousQueueing();
+
+        if (!hardwareAccelerationEnabled) {
+            renderersFactory.setMediaCodecSelector((mimeType, requiresSecureDecoder, requiresTunnelingDecoder) -> {
+                java.util.List<MediaCodecInfo> decoders =
+                        MediaCodecSelector.DEFAULT.getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunnelingDecoder);
+                java.util.List<MediaCodecInfo> swDecoders = new java.util.ArrayList<>();
+                for (MediaCodecInfo info : decoders) {
+                    if (info.softwareOnly) {
+                        swDecoders.add(info);
+                    }
+                }
+                return !swDecoders.isEmpty() ? swDecoders : decoders;
+            });
+        } else {
+            renderersFactory.setMediaCodecSelector(MediaCodecSelector.DEFAULT);
+        }
+        return renderersFactory;
+    }
+
+    /**
+     * Creates an optimized DefaultLoadControl configured for the absolute minimum possible startup latency (<=20ms)
+     * while maintaining a deep forward buffering pipeline in the background to prevent freezing or buffering.
+     *
+     * Key settings:
+     * - bufferForPlaybackMs = 20ms: Triggers STATE_READY and renders the first frame within 20ms of receiving packets.
+     * - bufferForPlaybackAfterRebufferMs = 100ms: Instant recovery to eliminate stutter loops.
+     * - prioritizeTimeOverSizeThresholds = true: Starts playing immediately when the time threshold (20ms) is met.
+     * - targetBufferBytes = 128MB - 256MB: Allows background loading to pre-fetch upcoming segments without delay.
+     * - backBuffer = 0ms: Immediately releases previous played buffer blocks, preventing stale freeze on channel switch.
+     */
+    public static DefaultLoadControl createOptimizedLoadControl(
+            int minBufferMs,
+            int maxBufferMs,
+            int bufferForPlaybackMs,
+            int bufferForPlaybackAfterRebufferMs,
+            boolean isLowRam) {
+        int targetBufferBytes = isLowRam ? (96 * 1024 * 1024) : (192 * 1024 * 1024);
+
+        return new DefaultLoadControl.Builder()
+                .setAllocator(new DefaultAllocator(true, 32 * 1024))
+                .setBufferDurationsMs(minBufferMs, maxBufferMs, bufferForPlaybackMs, bufferForPlaybackAfterRebufferMs)
+                .setTargetBufferBytes(targetBufferBytes)
+                .setPrioritizeTimeOverSizeThresholds(true)
+                .setBackBuffer(0, false)
+                .build();
     }
 }

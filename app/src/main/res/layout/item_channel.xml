@@ -22,7 +22,7 @@
             android:layout_height="match_parent"
             android:contentDescription="Channel Logo"
             android:scaleType="fitCenter"
-            android:src="@drawable/img_splash_bg" />
+            android:src="@drawable/img_app_icon" />
 
         <!-- Channel Number Tag (Top-Left) -->
         <TextView

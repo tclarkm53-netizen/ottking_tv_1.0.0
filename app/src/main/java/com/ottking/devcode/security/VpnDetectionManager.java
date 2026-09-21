@@ -235,12 +235,12 @@ public final class VpnDetectionManager {
                                 activeVpnDialog.dismiss();
                                 activeVpnDialog = null;
                             }
-                            Toast.makeText(activity, "VPN সংযোগ বিচ্ছিন্ন হয়েছে। স্বাগতম!", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(activity, "The VPN connection has been disconnected. Welcome!", Toast.LENGTH_SHORT).show();
                             if (onVpnResolved != null) {
                                 onVpnResolved.run();
                             }
                         } else {
-                            Toast.makeText(activity, "VPN এখনও চালু রয়েছে! দয়া করে VPN বন্ধ করুন।", Toast.LENGTH_LONG).show();
+                            Toast.makeText(activity, "The VPN is still on! Please turn off the VPN. ", Toast.LENGTH_LONG).show();
                         }
                     });
                 }

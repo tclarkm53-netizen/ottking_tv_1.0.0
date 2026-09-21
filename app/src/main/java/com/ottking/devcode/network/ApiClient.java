@@ -81,34 +81,18 @@ public class ApiClient {
     }
 
     public static List<CategoryEntity> getDefaultCategories() {
-        List<CategoryEntity> list = new ArrayList<>();
-        list.add(new CategoryEntity(1, "All", "ic_tv"));
-        list.add(new CategoryEntity(2, "News Live", "ic_tv"));
-        list.add(new CategoryEntity(3, "Sports Live", "ic_tv"));
-        list.add(new CategoryEntity(4, "Entertainment", "ic_tv"));
-        list.add(new CategoryEntity(5, "Movies & Series", "ic_tv"));
-        list.add(new CategoryEntity(6, "Music TV", "ic_tv"));
-        return list;
+        return new ArrayList<>();
     }
 
     public static List<ChannelEntity> getDefaultChannels() {
-        List<ChannelEntity> list = new ArrayList<>();
-        list.add(new ChannelEntity(1, "Somoy TV Live", "https://i.ibb.co/L5Q0J6q/somoy.png", "https://live.bdix.tv/live/somoy/playlist.m3u8", 2, false, "hls"));
-        list.add(new ChannelEntity(2, "Jamuna TV Live", "https://i.ibb.co/4p5Y7yN/jamuna.png", "https://live.bdix.tv/live/jamuna/playlist.m3u8", 2, false, "hls"));
-        list.add(new ChannelEntity(3, "T Sports Live HD", "https://i.ibb.co/XzVq0qW/tsports.png", "https://live.bdix.tv/live/tsports/playlist.m3u8", 3, false, "hls"));
-        list.add(new ChannelEntity(4, "GTV Sports Live", "https://i.ibb.co/P4Jp8g7/gtv.png", "https://live.bdix.tv/live/gtv/playlist.m3u8", 3, false, "hls"));
-        list.add(new ChannelEntity(5, "Channel 24 Live", "https://i.ibb.co/KjqfH0Y/channel24.png", "https://live.bdix.tv/live/channel24/playlist.m3u8", 2, false, "hls"));
-        list.add(new ChannelEntity(6, "Bongo Cinema HD", "https://i.ibb.co/7XgW99T/bongocinema.png", "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8", 5, false, "hls"));
-        list.add(new ChannelEntity(7, "NTV Bangladesh Live", "https://i.ibb.co/0VpLh0p/ntv.png", "https://live.bdix.tv/live/ntv/playlist.m3u8", 4, false, "hls"));
-        list.add(new ChannelEntity(8, "Music Bangladesh HD", "https://i.ibb.co/2vB5nK1/music.png", "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8", 6, false, "hls"));
-        return list;
+        return new ArrayList<>();
     }
 
     public void syncCategoriesAndChannels(final ApiCallback<Boolean> callback) {
         executor.execute(() -> {
             try {
                 if (!NetworkUtils.isNetworkConnected(context)) {
-                    mainHandler.post(() -> callback.onError("ইন্টারনেট সংযোগ নেই। দয়া করে আপনার নেটওয়ার্ক চেক করুন।"));
+                    mainHandler.post(() -> callback.onError("No internet connection. Please check your network."));
                     return;
                 }
 
@@ -158,10 +142,16 @@ public class ApiClient {
                                 for (int i = 0; i < catArray.length(); i++) {
                                     JSONObject item = catArray.getJSONObject(i);
                                     int cId = item.getInt("id");
-                                    String cName = item.getString("name");
+                                    String cName = item.optString("name", "");
+                                    if (cName == null) continue;
+                                    cName = cName.trim();
+                                    if (cName.isEmpty() || "null".equalsIgnoreCase(cName)) {
+                                        continue;
+                                    }
                                     String cIcon = item.optString("icon", "ic_tv");
 
-                                    if ("all".equalsIgnoreCase(cName.trim()) || "all channels".equalsIgnoreCase(cName.trim())) {
+                                    if ("all".equalsIgnoreCase(cName) || "all channels".equalsIgnoreCase(cName)
+                                            || "সকল চ্যানেল".equalsIgnoreCase(cName) || "সকল".equalsIgnoreCase(cName)) {
                                         cName = "All";
                                         hasAllCategory = true;
                                     }
@@ -225,10 +215,11 @@ public class ApiClient {
                                         continue;
                                     }
 
+                                    String logoUrlStr = item.optString("logo_url", item.optString("logo", "")).trim();
                                     chanEntities.add(new ChannelEntity(
                                             item.getInt("id"),
                                             item.getString("name"),
-                                            item.optString("logo_url"),
+                                            logoUrlStr,
                                             item.getString("stream_url"),
                                             item.getInt("category_id"),
                                             isPremium,
@@ -249,39 +240,66 @@ public class ApiClient {
                 AppDatabase db = AppDatabase.getInstance(context);
 
                 if (serverSuccess && (!catEntities.isEmpty() || !chanEntities.isEmpty())) {
-                    if (!catEntities.isEmpty()) {
-                        db.categoryDao().deleteAll();
-                        db.categoryDao().insertAll(catEntities);
-                    }
-                    if (!chanEntities.isEmpty()) {
-                        com.ottking.devcode.security.DatabaseKeyManager keyMgr = com.ottking.devcode.security.DatabaseKeyManager.getInstance(context);
-                        java.util.List<ChannelEntity> encryptedChannels = new java.util.ArrayList<>();
-                        for (ChannelEntity ch : chanEntities) {
-                            encryptedChannels.add(new ChannelEntity(
-                                    ch.id,
-                                    ch.name,
-                                    ch.logoUrl,
-                                    keyMgr.encryptStreamUrl(ch.streamUrl),
-                                    ch.categoryId,
-                                    ch.isPremium,
-                                    ch.streamType
-                            ));
+                    db.runInTransaction(() -> {
+                        if (!catEntities.isEmpty()) {
+                            List<CategoryEntity> validCats = new ArrayList<>();
+                            for (CategoryEntity cat : catEntities) {
+                                if (cat == null || cat.name == null) continue;
+                                String cName = cat.name.trim();
+                                if (cName.isEmpty() || "null".equalsIgnoreCase(cName)) {
+                                    continue;
+                                }
+                                if ("All".equalsIgnoreCase(cName)) {
+                                    validCats.add(cat);
+                                    continue;
+                                }
+                                if (!chanEntities.isEmpty()) {
+                                    boolean hasChan = false;
+                                    for (ChannelEntity ch : chanEntities) {
+                                        if (ch.categoryId == cat.id) {
+                                            hasChan = true;
+                                            break;
+                                        }
+                                    }
+                                    if (!hasChan) {
+                                        continue;
+                                    }
+                                }
+                                validCats.add(cat);
+                            }
+                            db.categoryDao().deleteAll();
+                            db.categoryDao().insertAll(validCats);
                         }
-                        db.channelDao().deleteAll();
-                        db.channelDao().insertAll(encryptedChannels);
-                    }
+                        if (!chanEntities.isEmpty()) {
+                            com.ottking.devcode.security.DatabaseKeyManager keyMgr = com.ottking.devcode.security.DatabaseKeyManager.getInstance(context);
+                            java.util.List<ChannelEntity> encryptedChannels = new java.util.ArrayList<>();
+                            for (ChannelEntity ch : chanEntities) {
+                                encryptedChannels.add(new ChannelEntity(
+                                        ch.id,
+                                        ch.name,
+                                        ch.logoUrl,
+                                        keyMgr.encryptStreamUrl(ch.streamUrl),
+                                        ch.categoryId,
+                                        ch.isPremium,
+                                        ch.streamType
+                                ));
+                            }
+                            db.channelDao().deleteAll();
+                            db.channelDao().insertAll(encryptedChannels);
+                        }
+                    });
                     String timestamp = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(new Date());
                     prefs.setLastSyncTime(timestamp);
                     mainHandler.post(() -> callback.onSuccess(true));
                 } else {
                     String finalErr = (serverErrorMessage != null && !serverErrorMessage.isEmpty())
-                            ? "সার্ভারের সাথে সংযোগ স্থাপন করা সম্ভব হয়নি: " + serverErrorMessage
-                            : "সার্ভার থেকে চ্যানেল ডেটা পাওয়া যায়নি।";
+                            ? "Unable to connect to server: " + serverErrorMessage
+                            : "No channel data received from server.";
                     mainHandler.post(() -> callback.onError(finalErr));
                 }
             } catch (Exception e) {
                 e.printStackTrace();
-                mainHandler.post(() -> callback.onError("সার্ভার এরর: " + e.getLocalizedMessage()));
+                mainHandler.post(() -> callback.onError("Server error: " + e.getLocalizedMessage()));
             }
         });
     }
@@ -1072,7 +1090,7 @@ public class ApiClient {
                 AppPreferences prefs = AppPreferences.getInstance(context);
                 if (prefs != null) {
                     prefs.setEdgeCookie(captured);
-                    android.util.Log.d("ApiClient", "Captured backend Edge-Cookie header: " + captured);
+                    android.util.Log.d("ApiClient", "Captured backend Edge-Cookie header: " );
                 }
             }
         } catch (Exception e) {
@@ -1105,7 +1123,7 @@ public class ApiClient {
         conn.setRequestProperty("X-Version-Name", versionName);
         conn.setRequestProperty("X-Version-Code", versionCode);
         conn.setRequestProperty("Version-Code", versionCode);
-        conn.setRequestProperty("User-Agent", "OTT-KING TV/" + versionName);
+        conn.setRequestProperty("User-Agent", com.ottking.devcode.utils.SecurePlayerHeaders.getDecryptedUserAgent());
 
         AppPreferences prefs = AppPreferences.getInstance(context);
         if (prefs != null) {
@@ -1178,7 +1196,7 @@ public class ApiClient {
         conn.setRequestProperty("X-Version-Name", versionName);
         conn.setRequestProperty("X-Version-Code", versionCode);
         conn.setRequestProperty("Version-Code", versionCode);
-        conn.setRequestProperty("User-Agent", "OTT-KING TV/" + versionName);
+        conn.setRequestProperty("User-Agent", com.ottking.devcode.utils.SecurePlayerHeaders.getDecryptedUserAgent());
 
         AppPreferences prefs = AppPreferences.getInstance(context);
         String devId = "";

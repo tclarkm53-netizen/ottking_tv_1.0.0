@@ -16,6 +16,45 @@ public class DataPollingManager {
     private boolean isPolling = false;
     private static final long INTERVAL_MS = 15000; // 15 seconds real-time subscription & channel sync
 
+    private final java.util.List<SyncListener> syncListeners = new java.util.concurrent.CopyOnWriteArrayList<>();
+
+    public interface SyncListener {
+        void onSyncStarted();
+        void onSyncCompleted(boolean success, String errorMessage);
+    }
+
+    public void addSyncListener(SyncListener listener) {
+        if (listener != null && !syncListeners.contains(listener)) {
+            syncListeners.add(listener);
+        }
+    }
+
+    public void removeSyncListener(SyncListener listener) {
+        if (listener != null) {
+            syncListeners.remove(listener);
+        }
+    }
+
+    private void notifySyncStarted() {
+        handler.post(() -> {
+            for (SyncListener l : syncListeners) {
+                try {
+                    l.onSyncStarted();
+                } catch (Exception ignored) {}
+            }
+        });
+    }
+
+    private void notifySyncCompleted(boolean success, String errorMessage) {
+        handler.post(() -> {
+            for (SyncListener l : syncListeners) {
+                try {
+                    l.onSyncCompleted(success, errorMessage);
+                } catch (Exception ignored) {}
+            }
+        });
+    }
+
     private final Runnable pollRunnable = new Runnable() {
         @Override
         public void run() {
@@ -28,12 +67,17 @@ public class DataPollingManager {
                     // Check subscription status in real-time
                     boolean wasActive = NetworkUtils.isSubscriptionActive(context);
 
+                    notifySyncStarted();
                     ApiClient.getInstance(context).syncCategoriesAndChannels(new ApiClient.ApiCallback<Boolean>() {
                         @Override
-                        public void onSuccess(Boolean result) {}
+                        public void onSuccess(Boolean result) {
+                            notifySyncCompleted(true, null);
+                        }
 
                         @Override
-                        public void onError(String errorMessage) {}
+                        public void onError(String errorMessage) {
+                            notifySyncCompleted(false, errorMessage);
+                        }
                     });
 
                     // Check session validity with server if logged in
@@ -77,13 +121,34 @@ public class DataPollingManager {
     }
 
     public void triggerSyncNow() {
+        triggerSyncNow(null);
+    }
+
+    public void triggerSyncNow(ApiClient.ApiCallback<Boolean> callback) {
         if (NetworkUtils.isNetworkConnected(context)) {
+            notifySyncStarted();
             ApiClient.getInstance(context).syncCategoriesAndChannels(new ApiClient.ApiCallback<Boolean>() {
                 @Override
-                public void onSuccess(Boolean result) {}
+                public void onSuccess(Boolean result) {
+                    notifySyncCompleted(true, null);
+                    if (callback != null) {
+                        callback.onSuccess(result);
+                    }
+                }
+
                 @Override
-                public void onError(String errorMessage) {}
+                public void onError(String errorMessage) {
+                    notifySyncCompleted(false, errorMessage);
+                    if (callback != null) {
+                        callback.onError(errorMessage);
+                    }
+                }
             });
+        } else {
+            notifySyncCompleted(false, "No internet connection");
+            if (callback != null) {
+                callback.onError("No internet connection");
+            }
         }
     }
 }

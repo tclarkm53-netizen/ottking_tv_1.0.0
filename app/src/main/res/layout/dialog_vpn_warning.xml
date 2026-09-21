@@ -33,7 +33,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="নিরাপত্তা সতর্কতা: VPN সনাক্ত হয়েছে"
+                android:text="Security Warning: VPN Detected"
                 android:textColor="@color/gold_primary"
                 android:textSize="18sp"
                 android:textStyle="bold" />
@@ -59,7 +59,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:lineSpacingMultiplier="1.25"
-        android:text="অ্যাপ্লিকেশন ট্রাফিক ও সুরক্ষিত লাইভ স্ট্রিম সুরক্ষার জন্য OTT KING অ্যাপে VPN, প্রক্সি বা প্যাকেট ক্যাপচার টুল ব্যবহার সম্পূর্ণরূপে নিষিদ্ধ।\n\nঅনুগ্রহ করে আপনার ডিভাইসের সক্রিয় VPN বা প্রক্সি সংযোগটি বন্ধ করুন এবং 'পুনরায় চেষ্টা করুন' বাটনে চাপ দিন।"
+        android:text="To protect application traffic and secure live streams, the use of VPN, proxy, or packet capture tools is strictly prohibited in.\n\nPlease disable the active VPN or proxy on your device and click 'Retry'."
         android:textColor="@color/text_primary"
         android:textSize="14sp" />
 
@@ -89,7 +89,7 @@
             android:focusable="true"
             android:paddingStart="16dp"
             android:paddingEnd="16dp"
-            android:text="অ্যাপ বন্ধ করুন"
+            android:text="Exit App"
             android:textColor="@color/text_secondary"
             android:textSize="14sp" />
 
@@ -101,7 +101,7 @@
             android:focusable="true"
             android:paddingStart="20dp"
             android:paddingEnd="20dp"
-            android:text="পুনরায় চেষ্টা করুন"
+            android:text="Retry"
             android:textColor="@color/text_primary"
             android:textSize="14sp"
             android:textStyle="bold" />

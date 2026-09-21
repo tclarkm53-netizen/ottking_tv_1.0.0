@@ -42,7 +42,7 @@ public final class SecurePlayerHeaders {
     private static final int[] _0xK_EDGE_COOKIE = { 24, 56, 56, 59, 116, 59, 52, 53, 62, 61, 50 }; // "Edge-cookie"
     private static final int[] _0xK_LOWER_EDGE_COOKIE = { 56, 56, 56, 59, 116, 59, 52, 53, 62, 61, 50 }; // "edge-cookie"
     private static final int[] _0xK_COOKIE = { 30, 51, 48, 53, 48, 61 }; // "Cookie"
-    private static final int[] _0xK_OTT_KING_USER_AGENT = { 18, 8, 11, 115, 18, 17, 21, 29, 117, 25, 56, 52, 56, 60, 54, 114, 108, 114, 109 }; // "OTT-KING Mobile 1.2"
+    private static final int[] _0xK_OTT_KING_USER_AGENT = { 18, 8, 11, 115, 18, 17, 21, 29, 117, 0, 1, 118, 96, 126, 99 }; // "OTT-KING TV 1.0"
     private static final int[] _0xK_X_SECURITY_HASH = { 5, 113, 12, 59, 58, 45, 41, 51, 33, 45, 122, 30, 48, 35, 59 }; // "X-Security-Hash"
 
     private SecurePlayerHeaders() {}
