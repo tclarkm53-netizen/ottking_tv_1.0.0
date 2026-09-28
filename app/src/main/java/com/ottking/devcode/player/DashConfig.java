@@ -35,8 +35,8 @@ public final class DashConfig {
     public static final long DASH_TARGET_LIVE_OFFSET_MS = C.TIME_UNSET; // Derived directly from MPD manifest for zero-delay start
     public static final long DASH_MIN_LIVE_OFFSET_MS = C.TIME_UNSET;
     public static final long DASH_MAX_LIVE_OFFSET_MS = C.TIME_UNSET;
-    public static final float DASH_MIN_PLAYBACK_SPEED = 0.97f;    // Dynamic micro-slowdown prevents hard buffering freezes
-    public static final float DASH_MAX_PLAYBACK_SPEED = 1.03f;    // Dynamic micro-speedup seamlessly catches up to live edge
+    public static final float DASH_MIN_PLAYBACK_SPEED = 0.92f;    // Dynamic micro-slowdown prevents hard buffering freezes on low network
+    public static final float DASH_MAX_PLAYBACK_SPEED = 1.08f;    // Dynamic micro-speedup seamlessly catches up when network recovers
 
     private DashConfig() {}
 

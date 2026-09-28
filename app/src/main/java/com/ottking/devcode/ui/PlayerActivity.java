@@ -169,8 +169,8 @@ public class PlayerActivity extends AppCompatActivity {
     private int consecutiveStallRecoveries = 0;
     private boolean isPlayerResumed = false;
     private static final long AUTO_POLL_INTERVAL_MS = 1000; // Poll every 1.0 second for proactive stream health & buffer monitoring
-    private static final long MAX_ALLOWED_BUFFER_MS = 3500; // 3.5s continuous buffer stall = auto-recover stream
-    private static final long MAX_ALLOWED_FREEZE_MS = 3000; // 3.0s frozen position with no progress = auto-recover stream
+    private static final long MAX_ALLOWED_BUFFER_MS = 15000; // 15s continuous buffer stall without data = auto-recover stream
+    private static final long MAX_ALLOWED_FREEZE_MS = 8000; // 8.0s frozen position with no progress = auto-recover stream
     private long currentLiveTargetOffsetMs = C.TIME_UNSET;
     private long currentLiveMinOffsetMs = C.TIME_UNSET;
     private long currentLiveMaxOffsetMs = C.TIME_UNSET;
@@ -741,9 +741,9 @@ public class PlayerActivity extends AppCompatActivity {
             sharedOkHttpClient = new OkHttpClient.Builder()
                     .dispatcher(dispatcher)
                     .connectionPool(new ConnectionPool(32, 10, TimeUnit.MINUTES))
-                    .connectTimeout(5, TimeUnit.SECONDS)
-                    .readTimeout(8, TimeUnit.SECONDS)
-                    .writeTimeout(8, TimeUnit.SECONDS)
+                    .connectTimeout(15, TimeUnit.SECONDS)
+                    .readTimeout(20, TimeUnit.SECONDS)
+                    .writeTimeout(15, TimeUnit.SECONDS)
                     .retryOnConnectionFailure(true)
                     .followRedirects(true)
                     .followSslRedirects(true)
@@ -889,15 +889,15 @@ public class PlayerActivity extends AppCompatActivity {
             if (bandwidthMeter == null) {
                 bandwidthMeter = new DefaultBandwidthMeter.Builder(playerContext)
                         .setResetOnNetworkTypeChange(true)
-                        .setInitialBitrateEstimate(800_000) // 800 kbps downloads initial chunk in ~20-40ms for lightning startup
+                        .setInitialBitrateEstimate(400_000) // 400 kbps starts on lowest/safest rendition for instant, freeze-free start on low networks
                         .build();
             }
 
             AdaptiveTrackSelection.Factory adaptiveTrackSelectionFactory = new AdaptiveTrackSelection.Factory(
-                    1500,   // minDurationForQualityIncreaseMs: 1.5s fast step-up to Full HD
-                    1000,   // maxDurationForQualityDecreaseMs: Downgrade quickly within 1.0s if bandwidth drops
-                    10000,  // minDurationToRetainAfterDiscardMs
-                    0.80f   // bandwidthFraction
+                    5000,   // minDurationForQualityIncreaseMs: 5.0s stable bandwidth before increasing quality
+                    1000,   // maxDurationForQualityDecreaseMs: 1.0s fast downgrade if network drops
+                    12000,  // minDurationToRetainAfterDiscardMs
+                    0.70f   // bandwidthFraction: 70% keeps 30% margin for low network jitter
             );
             trackSelector = new DefaultTrackSelector(playerContext, adaptiveTrackSelectionFactory);
 
@@ -911,54 +911,39 @@ public class PlayerActivity extends AppCompatActivity {
 
             int minBufferMs;
             int maxBufferMs;
-            // ABSOLUTE MINIMUM LATENCY STARTUP (<=20ms target) & ZERO BUFFERING:
-            // bufferForPlaybackMs = 20ms ensures playback begins immediately within 20ms
-            // while background loading maintains continuous segments to prevent freezing.
-            int bufferForPlaybackMs = 20;
-            int bufferForPlaybackAfterRebufferMs = 100;
+            int bufferForPlaybackMs;
+            int bufferForPlaybackAfterRebufferMs;
 
-            if (buf.contains("Fast") || buf.contains("1 sec") || buf.contains("2s")) {
+            if (buf.contains("Fast") || buf.contains("1 sec") || buf.contains("2s") || buf.contains("1.2s")) {
                 minBufferMs = isLowRam ? 15000 : 25000;
                 maxBufferMs = isLowRam ? 30000 : 50000;
-                bufferForPlaybackMs = 20;
-                bufferForPlaybackAfterRebufferMs = 100;
-                currentLiveTargetOffsetMs = C.TIME_UNSET;
-                currentLiveMinOffsetMs = C.TIME_UNSET;
-                currentLiveMaxOffsetMs = C.TIME_UNSET;
-            } else if (buf.contains("Standard") || buf.contains("3 sec") || buf.contains("60s")) {
+                bufferForPlaybackMs = 1000;
+                bufferForPlaybackAfterRebufferMs = 2500;
+            } else if (buf.contains("Standard") || buf.contains("3 sec")) {
                 minBufferMs = isLowRam ? 25000 : 35000;
                 maxBufferMs = isLowRam ? 50000 : 70000;
-                bufferForPlaybackMs = 20;
-                bufferForPlaybackAfterRebufferMs = 100;
-                currentLiveTargetOffsetMs = C.TIME_UNSET;
-                currentLiveMinOffsetMs = C.TIME_UNSET;
-                currentLiveMaxOffsetMs = C.TIME_UNSET;
+                bufferForPlaybackMs = 1500;
+                bufferForPlaybackAfterRebufferMs = 3000;
             } else if (buf.contains("Smooth") || buf.contains("5 sec") || buf.contains("90s")) {
                 minBufferMs = isLowRam ? 30000 : 50000;
                 maxBufferMs = isLowRam ? 60000 : 90000;
-                bufferForPlaybackMs = 20;
-                bufferForPlaybackAfterRebufferMs = 100;
-                currentLiveTargetOffsetMs = C.TIME_UNSET;
-                currentLiveMinOffsetMs = C.TIME_UNSET;
-                currentLiveMaxOffsetMs = C.TIME_UNSET;
-            } else if (buf.contains("Ultra") || buf.contains("180s") || buf.contains("Shield")) {
+                bufferForPlaybackMs = 2000;
+                bufferForPlaybackAfterRebufferMs = 4000;
+            } else if (buf.contains("Ultra") || buf.contains("180s") || buf.contains("Shield") || buf.contains("High Jitter")) {
                 minBufferMs = isLowRam ? 40000 : 60000;
                 maxBufferMs = isLowRam ? 80000 : 120000;
-                bufferForPlaybackMs = 20;
-                bufferForPlaybackAfterRebufferMs = 100;
-                currentLiveTargetOffsetMs = C.TIME_UNSET;
-                currentLiveMinOffsetMs = C.TIME_UNSET;
-                currentLiveMaxOffsetMs = C.TIME_UNSET;
+                bufferForPlaybackMs = 2500;
+                bufferForPlaybackAfterRebufferMs = 5000;
             } else {
-                // Default: Immediate 20ms startup + continuous robust forward buffer
+                // Default / Instant Live / Low Network Resilient: 1.5s start, 35s buffer, 3.5s rebuffer
                 minBufferMs = isLowRam ? 25000 : 35000;
                 maxBufferMs = isLowRam ? 50000 : 70000;
-                bufferForPlaybackMs = 20;
-                bufferForPlaybackAfterRebufferMs = 100;
-                currentLiveTargetOffsetMs = C.TIME_UNSET;
-                currentLiveMinOffsetMs = C.TIME_UNSET;
-                currentLiveMaxOffsetMs = C.TIME_UNSET;
+                bufferForPlaybackMs = 1500;
+                bufferForPlaybackAfterRebufferMs = 3500;
             }
+            currentLiveTargetOffsetMs = C.TIME_UNSET;
+            currentLiveMinOffsetMs = C.TIME_UNSET;
+            currentLiveMaxOffsetMs = C.TIME_UNSET;
 
             // High capacity LoadControl pre-downloads advance segments aggressively
             DefaultLoadControl loadControl = PlayerUtils.createOptimizedLoadControl(
@@ -999,6 +984,15 @@ public class PlayerActivity extends AppCompatActivity {
 
             bufferingWatchdogRunnable = () -> {
                 if (player != null && (player.getPlaybackState() == Player.STATE_BUFFERING || player.getPlaybackState() == Player.STATE_IDLE || player.getPlayerError() != null)) {
+                    long currentBufferedPos = player.getBufferedPosition();
+                    if (lastBufferedPositionMs != -1 && currentBufferedPos > lastBufferedPositionMs) {
+                        // Data is actively arriving over low network, postpone watchdog
+                        lastBufferedPositionMs = currentBufferedPos;
+                        if (bufferingWatchdogHandler != null) {
+                            bufferingWatchdogHandler.postDelayed(bufferingWatchdogRunnable, MAX_ALLOWED_BUFFER_MS);
+                        }
+                        return;
+                    }
                     reconnectStream("Stream connection stalled in buffering, auto reconnecting...");
                 }
             };
@@ -1032,11 +1026,13 @@ public class PlayerActivity extends AppCompatActivity {
                     bufferingWatchdogHandler.removeCallbacks(bufferingWatchdogRunnable);
                     dismissBufferingView();
                     if (playbackState == Player.STATE_BUFFERING) {
+                        lastBufferedPositionMs = (player != null) ? player.getBufferedPosition() : -1;
                         bufferingWatchdogHandler.postDelayed(bufferingWatchdogRunnable, MAX_ALLOWED_BUFFER_MS);
                     } else if (playbackState == Player.STATE_READY) {
                         retryCount = 0;
                         continuousBufferStartTime = 0;
                         positionStallStartTime = 0;
+                        lastBufferedPositionMs = -1;
                         dismissBufferingView();
                         long now = System.currentTimeMillis();
                         if (lastFrameRenderTimeMs == 0) {
@@ -1234,9 +1230,10 @@ public class PlayerActivity extends AppCompatActivity {
             String res = prefs.getVideoResolution();
             DefaultTrackSelector.Parameters.Builder builder = trackSelector.buildUponParameters()
                     .setAllowVideoMixedMimeTypeAdaptiveness(true)
-                    .setAllowVideoNonSeamlessAdaptiveness(false)
+                    .setAllowVideoNonSeamlessAdaptiveness(true)
                     .setAllowMultipleAdaptiveSelections(true)
                     .setExceedRendererCapabilitiesIfNecessary(true)
+                    .setExceedVideoConstraintsIfNecessary(true)
                     .setTunnelingEnabled(false)
                     .setViewportSizeToPhysicalDisplaySize(this, true);
 
@@ -2964,27 +2961,41 @@ public class PlayerActivity extends AppCompatActivity {
 
         // 2. Stream buffering stalled (STATE_BUFFERING)
         if (state == Player.STATE_BUFFERING) {
-            dismissBufferingView();
             positionStallStartTime = 0;
             lastObservedPosition = -1;
-            if (continuousBufferStartTime == 0) {
-                continuousBufferStartTime = now;
-                // Proactively trigger token & edge-cookie renewal in background immediately
-                com.ottking.devcode.network.GlobalCookieManager.getInstance(this).getValidatedCookie(currentChannelId, currentStreamUrl);
-            } else {
-                long bufferStallDuration = now - continuousBufferStartTime;
 
-                if (bufferStallDuration >= MAX_ALLOWED_BUFFER_MS) {
-                    android.util.Log.w("PlayerWatchdog", "Buffering timeout (" + bufferStallDuration + "ms). Executing stream data recovery...");
-                    continuousBufferStartTime = 0;
-                    consecutiveStallRecoveries++;
-                    reconnectStream("Buffering timeout (" + bufferStallDuration + "ms), auto-recovering...");
-                    return;
+            long currentBufferedPos = player.getBufferedPosition();
+
+            // If buffered position has increased, data IS actively downloading over low network!
+            if (lastBufferedPositionMs != -1 && currentBufferedPos > lastBufferedPositionMs) {
+                lastBufferedPositionMs = currentBufferedPos;
+                continuousBufferStartTime = now; // Reset timeout since active download progress is occurring
+                consecutiveStallRecoveries = 0;
+            } else {
+                if (lastBufferedPositionMs == -1) {
+                    lastBufferedPositionMs = currentBufferedPos;
+                }
+                if (continuousBufferStartTime == 0) {
+                    continuousBufferStartTime = now;
+                    // Proactively trigger token & edge-cookie renewal in background immediately
+                    com.ottking.devcode.network.GlobalCookieManager.getInstance(this).getValidatedCookie(currentChannelId, currentStreamUrl);
+                } else {
+                    long bufferStallDuration = now - continuousBufferStartTime;
+
+                    if (bufferStallDuration >= MAX_ALLOWED_BUFFER_MS) {
+                        android.util.Log.w("PlayerWatchdog", "Buffering timeout (" + bufferStallDuration + "ms) with no data transfer. Executing stream recovery...");
+                        continuousBufferStartTime = 0;
+                        lastBufferedPositionMs = -1;
+                        consecutiveStallRecoveries++;
+                        reconnectStream("Buffering timeout (" + bufferStallDuration + "ms), auto-recovering...");
+                        return;
+                    }
                 }
             }
             return;
         } else {
             continuousBufferStartTime = 0;
+            lastBufferedPositionMs = -1;
         }
 
         // 3. Player is in STATE_READY -> verify actual playback progress and detect video freeze

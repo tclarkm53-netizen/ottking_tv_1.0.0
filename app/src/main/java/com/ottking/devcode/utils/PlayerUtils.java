@@ -347,14 +347,13 @@ public class PlayerUtils {
     }
 
     /**
-     * Creates an optimized DefaultLoadControl configured for the absolute minimum possible startup latency (<=20ms)
-     * while maintaining a deep forward buffering pipeline in the background to prevent freezing or buffering.
+     * Creates an optimized DefaultLoadControl configured for smooth streaming across low and fluctuating networks
+     * while maintaining a healthy forward buffer pipeline to prevent freezing or stuttering.
      *
      * Key settings:
-     * - bufferForPlaybackMs = 20ms: Triggers STATE_READY and renders the first frame within 20ms of receiving packets.
-     * - bufferForPlaybackAfterRebufferMs = 100ms: Instant recovery to eliminate stutter loops.
-     * - prioritizeTimeOverSizeThresholds = true: Starts playing immediately when the time threshold (20ms) is met.
-     * - targetBufferBytes = 128MB - 256MB: Allows background loading to pre-fetch upcoming segments without delay.
+     * - bufferForPlaybackMs: Accumulates stable frames before playback starts, eliminating immediate underrun.
+     * - bufferForPlaybackAfterRebufferMs: Deep buffer cushion on rebuffer, completely eliminating rapid stutter/freeze loops.
+     * - targetBufferBytes: Appropriately sized (24MB - 48MB) to run smoothly on 1GB RAM Android TVs without GC freezes.
      * - backBuffer = 0ms: Immediately releases previous played buffer blocks, preventing stale freeze on channel switch.
      */
     public static DefaultLoadControl createOptimizedLoadControl(
@@ -363,13 +362,13 @@ public class PlayerUtils {
             int bufferForPlaybackMs,
             int bufferForPlaybackAfterRebufferMs,
             boolean isLowRam) {
-        int targetBufferBytes = isLowRam ? (96 * 1024 * 1024) : (192 * 1024 * 1024);
+        int targetBufferBytes = isLowRam ? (24 * 1024 * 1024) : (48 * 1024 * 1024);
 
         return new DefaultLoadControl.Builder()
                 .setAllocator(new DefaultAllocator(true, 32 * 1024))
                 .setBufferDurationsMs(minBufferMs, maxBufferMs, bufferForPlaybackMs, bufferForPlaybackAfterRebufferMs)
                 .setTargetBufferBytes(targetBufferBytes)
-                .setPrioritizeTimeOverSizeThresholds(true)
+                .setPrioritizeTimeOverSizeThresholds(false)
                 .setBackBuffer(0, false)
                 .build();
     }
