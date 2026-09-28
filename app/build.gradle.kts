@@ -15,7 +15,7 @@ android {
     minSdk = 24
     targetSdk = 35
     versionCode = 1
-    versionName = "1.0"
+    versionName = "1.1"
 
     // Only bundle needed language resources to shrink resources.arsc
     resourceConfigurations += listOf("en", "bn")
