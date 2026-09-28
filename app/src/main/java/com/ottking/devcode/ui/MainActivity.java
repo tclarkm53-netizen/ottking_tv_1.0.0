@@ -390,10 +390,6 @@ public class MainActivity extends AppCompatActivity {
         int spanCount = 5;
         recyclerChannels.setLayoutManager(new GridLayoutManager(this, spanCount));
         channelAdapter = new ChannelAdapter(channel -> {
-            if (com.ottking.devcode.security.VpnDetectionManager.isVpnOrProxyActive(MainActivity.this)) {
-                com.ottking.devcode.security.VpnDetectionManager.getInstance().showVpnBlockingDialog(MainActivity.this, null);
-                return;
-            }
             int pos = -1;
             for (int i = 0; i < allChannels.size(); i++) {
                 if (allChannels.get(i).id == channel.id) {
@@ -1374,36 +1370,6 @@ public class MainActivity extends AppCompatActivity {
         super.onResume();
         UIUtils.hideSystemUI(this);
 
-        // VPN & Proxy Security Guard: Block access if VPN is active
-        if (com.ottking.devcode.security.VpnDetectionManager.isVpnOrProxyActive(this)) {
-            com.ottking.devcode.security.VpnDetectionManager.getInstance().showVpnBlockingDialog(this, () -> {
-                updateNetworkStatusUI(checkIsConnected());
-                DataPollingManager.getInstance(MainActivity.this).triggerSyncNow();
-            });
-            return;
-        }
-
-        com.ottking.devcode.security.VpnDetectionManager.getInstance().startMonitoring(this, new com.ottking.devcode.security.VpnDetectionManager.VpnStateListener() {
-            @Override
-            public void onVpnDetected() {
-                runOnUiThread(() -> {
-                    com.ottking.devcode.security.VpnDetectionManager.getInstance().showVpnBlockingDialog(MainActivity.this, () -> {
-                        updateNetworkStatusUI(checkIsConnected());
-                        DataPollingManager.getInstance(MainActivity.this).triggerSyncNow();
-                    });
-                });
-            }
-
-            @Override
-            public void onVpnDisconnected() {
-                runOnUiThread(() -> {
-                    com.ottking.devcode.security.VpnDetectionManager.getInstance().dismissDialog();
-                    updateNetworkStatusUI(checkIsConnected());
-                    DataPollingManager.getInstance(MainActivity.this).triggerSyncNow();
-                });
-            }
-        });
-
         rebuildAllChannels();
         updateNotificationBadge();
         filterChannels();
@@ -1423,7 +1389,6 @@ public class MainActivity extends AppCompatActivity {
         super.onPause();
         DataPollingManager.getInstance(this).removeSyncListener(syncListener);
         DataPollingManager.getInstance(this).stopPolling();
-        com.ottking.devcode.security.VpnDetectionManager.getInstance().stopMonitoring(this);
     }
 
     @Override
@@ -1515,8 +1480,6 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
-        com.ottking.devcode.security.VpnDetectionManager.getInstance().stopMonitoring(this);
-        com.ottking.devcode.security.VpnDetectionManager.getInstance().dismissDialog();
         if (currentExitDialog != null) {
             try {
                 if (currentExitDialog.isShowing()) {

@@ -81,9 +81,6 @@ public class SplashActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         UIUtils.hideSystemUI(this);
-        if (com.ottking.devcode.security.VpnDetectionManager.isVpnOrProxyActive(this)) {
-            com.ottking.devcode.security.VpnDetectionManager.getInstance().showVpnBlockingDialog(this, this::performNetworkAndServerSync);
-        }
     }
 
     @Override
@@ -119,12 +116,6 @@ public class SplashActivity extends AppCompatActivity {
 
     private void performNetworkAndServerSync() {
         showLoadingState("Checking internet and server connection...");
-
-        // VPN & Proxy Check
-        if (com.ottking.devcode.security.VpnDetectionManager.isVpnOrProxyActive(this)) {
-            com.ottking.devcode.security.VpnDetectionManager.getInstance().showVpnBlockingDialog(this, this::performNetworkAndServerSync);
-            return;
-        }
 
         // 1. Check if device has an active network connection
         if (!NetworkUtils.isNetworkConnected(this)) {

@@ -1317,13 +1317,6 @@ public class PlayerActivity extends AppCompatActivity {
         // Decrypt stream URL if encrypted with hardware key
         url = com.ottking.devcode.security.DatabaseKeyManager.getDecryptedUrl(this, url);
 
-        // VPN & Proxy Security Guard: Immediately stop playback and block if VPN is active
-        if (com.ottking.devcode.security.VpnDetectionManager.isVpnOrProxyActive(this)) {
-            player.stop();
-            com.ottking.devcode.security.VpnDetectionManager.getInstance().showVpnBlockingDialog(this, () -> playStream(currentStreamUrl));
-            return;
-        }
-
         // Reset auto-polling stall metrics for clean stream start
         lastObservedPosition = -1;
         lastBufferedPositionMs = -1;
@@ -2658,38 +2651,6 @@ public class PlayerActivity extends AppCompatActivity {
         isPlayerResumed = true;
         UIUtils.hideSystemUI(this);
 
-        // VPN & Proxy Security Guard
-        if (com.ottking.devcode.security.VpnDetectionManager.isVpnOrProxyActive(this)) {
-            if (player != null) {
-                player.stop();
-            }
-            com.ottking.devcode.security.VpnDetectionManager.getInstance().showVpnBlockingDialog(this, () -> playStream(currentStreamUrl));
-            return;
-        }
-
-        // Register Real-time VPN Monitoring
-        com.ottking.devcode.security.VpnDetectionManager.getInstance().startMonitoring(this, new com.ottking.devcode.security.VpnDetectionManager.VpnStateListener() {
-            @Override
-            public void onVpnDetected() {
-                runOnUiThread(() -> {
-                    if (player != null) {
-                        player.stop();
-                    }
-                    com.ottking.devcode.security.VpnDetectionManager.getInstance().showVpnBlockingDialog(PlayerActivity.this, () -> playStream(currentStreamUrl));
-                });
-            }
-
-            @Override
-            public void onVpnDisconnected() {
-                runOnUiThread(() -> {
-                    com.ottking.devcode.security.VpnDetectionManager.getInstance().dismissDialog();
-                    if (player != null && currentStreamUrl != null && !currentStreamUrl.isEmpty()) {
-                        playStream(currentStreamUrl);
-                    }
-                });
-            }
-        });
-
         applySavedPlayerSettings();
         rebuildPlayerChannels();
         if (player != null && !player.isPlaying()) {
@@ -2869,7 +2830,6 @@ public class PlayerActivity extends AppCompatActivity {
         DataPollingManager.getInstance(this).stopPolling();
         stopCookieRefreshTimer();
         com.ottking.devcode.network.GlobalCookieManager.getInstance(this).stopPeriodicRefresh();
-        com.ottking.devcode.security.VpnDetectionManager.getInstance().stopMonitoring(this);
         if (player != null) {
             player.pause();
         }
@@ -2877,8 +2837,6 @@ public class PlayerActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
-        com.ottking.devcode.security.VpnDetectionManager.getInstance().stopMonitoring(this);
-        com.ottking.devcode.security.VpnDetectionManager.getInstance().dismissDialog();
         com.ottking.devcode.network.GlobalCookieManager.getInstance(this).stopPeriodicRefresh();
         if (currentPlayerExitDialog != null) {
             try {
