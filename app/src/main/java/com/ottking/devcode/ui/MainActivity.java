@@ -48,6 +48,7 @@ import com.ottking.devcode.db.CategoryEntity;
 import com.ottking.devcode.db.ChannelEntity;
 import com.ottking.devcode.network.DataPollingManager;
 import com.ottking.devcode.preferences.AppPreferences;
+import com.ottking.devcode.utils.CustomOrderManager;
 import com.ottking.devcode.utils.NetworkUtils;
 
 import java.util.ArrayList;
@@ -60,6 +61,15 @@ import com.ottking.devcode.viewmodel.FocusViewModel;
 public class MainActivity extends AppCompatActivity {
 
     public static final String SCREEN_KEY = "MainActivity";
+
+    private final List<ChannelEntity> rawChannelsFromDb = new ArrayList<>();
+    private final CustomOrderManager.OnOrderChangedListener orderChangedListener = () -> {
+        runOnUiThread(() -> {
+            rebuildAllChannels();
+            updateCategoriesAndSelection();
+            filterChannels();
+        });
+    };
     public static final String GROUP_CATEGORIES = "categories";
     public static final String GROUP_CHANNELS = "channels";
     public static final String GROUP_HEADER = "header";
@@ -88,8 +98,8 @@ public class MainActivity extends AppCompatActivity {
 
     private final List<ChannelEntity> allChannels = new ArrayList<>();
     private final List<ChannelEntity> filteredChannels = new ArrayList<>();
-    public static final int DEFAULT_ALL_CATEGORY_ID = 1;
-    private int selectedCategoryId = DEFAULT_ALL_CATEGORY_ID; // 1 = All
+    public static final int DEFAULT_ALL_CATEGORY_ID = -1;
+    private int selectedCategoryId = DEFAULT_ALL_CATEGORY_ID; // -1 = All
     private int allCategoryId = DEFAULT_ALL_CATEGORY_ID;
     private boolean isInitialLaunch = true;
     private boolean isServerSyncCompleted = false;
@@ -230,6 +240,7 @@ public class MainActivity extends AppCompatActivity {
         setupFocusGuard();
 
         FocusManager.getInstance().setupBackPressHandler(this, SCREEN_KEY, this::handleMainBackPressInternal);
+        CustomOrderManager.getInstance(this).addListener(orderChangedListener);
         recyclerCategories.post(this::focusFirstCategoryItem);
     }
 
@@ -751,6 +762,31 @@ public class MainActivity extends AppCompatActivity {
         focusChannelAtPosition(0);
     }
 
+    private void rebuildAllChannels() {
+        if (rawChannelsFromDb.isEmpty() || rawCategoriesFromDb.isEmpty()) {
+            try {
+                AppDatabase db = AppDatabase.getInstance(this);
+                List<CategoryEntity> cats = db.categoryDao().getAllCategoriesSync();
+                List<ChannelEntity> chans = db.channelDao().getAllChannelsSync();
+                if (cats != null && !cats.isEmpty()) {
+                    rawCategoriesFromDb.clear();
+                    rawCategoriesFromDb.addAll(cats);
+                }
+                if (chans != null && !chans.isEmpty()) {
+                    rawChannelsFromDb.clear();
+                    rawChannelsFromDb.addAll(chans);
+                }
+            } catch (Exception ignored) {}
+        }
+        allChannels.clear();
+        CustomOrderManager orderManager = CustomOrderManager.getInstance(this);
+        List<ChannelEntity> ordered = orderManager.buildOrderedAllChannels(rawChannelsFromDb, rawCategoriesFromDb, false);
+        allChannels.addAll(ordered);
+        if (channelAdapter != null) {
+            channelAdapter.setAllChannelsList(allChannels);
+        }
+    }
+
     private void observeRoomDatabase() {
         AppDatabase db = AppDatabase.getInstance(this);
 
@@ -759,16 +795,17 @@ public class MainActivity extends AppCompatActivity {
             if (categories != null) {
                 rawCategoriesFromDb.addAll(categories);
             }
+            rebuildAllChannels();
             updateCategoriesAndSelection();
         });
 
         db.channelDao().getAllChannels().observe(this, channels -> {
             channelsLoadedFromDb = true;
-            allChannels.clear();
+            rawChannelsFromDb.clear();
             if (channels != null && !channels.isEmpty()) {
-                allChannels.addAll(channels);
+                rawChannelsFromDb.addAll(channels);
             }
-            channelAdapter.setAllChannelsList(allChannels);
+            rebuildAllChannels();
             filterChannels();
             updateCategoriesAndSelection();
         });
@@ -1027,6 +1064,9 @@ public class MainActivity extends AppCompatActivity {
                     allCategoryId = c.id;
                 }
             } else {
+                if (CustomOrderManager.getInstance(this).isCategoryHidden(c.id)) {
+                    continue;
+                }
                 // If channels have been loaded or channels list is present, verify category has channels
                 if (channelsLoadedFromDb || !allChannels.isEmpty()) {
                     boolean hasChannel = false;
@@ -1035,6 +1075,9 @@ public class MainActivity extends AppCompatActivity {
                             continue;
                         }
                         if (chan.name == null || chan.name.trim().isEmpty()) {
+                            continue;
+                        }
+                        if (CustomOrderManager.getInstance(this).isChannelHidden(chan.id)) {
                             continue;
                         }
                         if (chan.categoryId == c.id) {
@@ -1051,45 +1094,27 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
+        CustomOrderManager orderMgr = CustomOrderManager.getInstance(this);
+        List<CategoryEntity> customOrdered = orderMgr.buildOrderedCategories(validCategories, false);
+
         if (foundAll != null) {
             result.add(foundAll);
-            result.addAll(validCategories);
+            result.addAll(customOrdered);
         } else {
-            // Pick an ID not used by existing categories for the All category
-            int specialId = DEFAULT_ALL_CATEGORY_ID;
-            boolean id1Used = false;
-            for (CategoryEntity c : validCategories) {
-                if (c.id == DEFAULT_ALL_CATEGORY_ID) {
-                    id1Used = true;
-                    break;
-                }
-            }
-            if (id1Used) {
-                specialId = 0;
-            }
-            allCategoryId = specialId;
-            result.add(new CategoryEntity(specialId, "All", "ic_tv"));
-            result.addAll(validCategories);
+            allCategoryId = DEFAULT_ALL_CATEGORY_ID;
+            result.add(new CategoryEntity(DEFAULT_ALL_CATEGORY_ID, "All", "ic_tv"));
+            result.addAll(customOrdered);
         }
         return result;
     }
 
     private boolean isAllCategory(int categoryId) {
         if (categoryId == allCategoryId) return true;
-        if (categoryId == DEFAULT_ALL_CATEGORY_ID && allCategoryId == DEFAULT_ALL_CATEGORY_ID) return true;
+        if (categoryId == DEFAULT_ALL_CATEGORY_ID) return true;
         if (categoryAdapter != null) {
-            if (categoryAdapter.getItemCount() > 0) {
-                CategoryEntity firstCat = categoryAdapter.getCategoryAt(0);
-                if (firstCat != null && firstCat.id == categoryId) {
-                    return true;
-                }
-            }
             for (CategoryEntity cat : categoryAdapter.getCategoryList()) {
                 if (cat.id == categoryId) {
-                    String name = cat.name != null ? cat.name.trim() : "";
-                    if ("all".equalsIgnoreCase(name) || "all channels".equalsIgnoreCase(name) || "সকল চ্যানেল".equalsIgnoreCase(name) || "সকল".equalsIgnoreCase(name)) {
-                        return true;
-                    }
+                    return CustomOrderManager.isAllCategory(cat);
                 }
             }
         }
@@ -1100,19 +1125,35 @@ public class MainActivity extends AppCompatActivity {
         filteredChannels.clear();
         String query = edtSearch.getText().toString().trim().toLowerCase();
         boolean isSubActive = NetworkUtils.isSubscriptionActive(this);
+        CustomOrderManager orderManager = CustomOrderManager.getInstance(this);
 
+        List<ChannelEntity> targetList = new ArrayList<>();
         for (ChannelEntity chan : allChannels) {
             // Real-time subscription sync: if subscription has expired and channel is premium, hide it
             if (!isSubActive && chan.isPremium) {
                 continue;
             }
 
+            if (orderManager.isChannelHidden(chan.id)) {
+                continue;
+            }
+
+            if (orderManager.isCategoryHidden(chan.categoryId)) {
+                continue;
+            }
+
             boolean matchesCategory = isAllCategory(selectedCategoryId) || (chan.categoryId == selectedCategoryId);
-            boolean matchesSearch = query.isEmpty() || chan.name.toLowerCase().contains(query);
+            boolean matchesSearch = query.isEmpty() || (chan.name != null && chan.name.toLowerCase().contains(query));
 
             if (matchesCategory && matchesSearch) {
-                filteredChannels.add(chan);
+                targetList.add(chan);
             }
+        }
+
+        if (!isAllCategory(selectedCategoryId)) {
+            filteredChannels.addAll(orderManager.buildOrderedChannelsForCategory(selectedCategoryId, targetList, false));
+        } else {
+            filteredChannels.addAll(targetList);
         }
 
         channelAdapter.setChannels(filteredChannels);
@@ -1363,6 +1404,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        rebuildAllChannels();
         updateNotificationBadge();
         filterChannels();
         updateCategoriesAndSelection();
@@ -1490,6 +1532,7 @@ public class MainActivity extends AppCompatActivity {
             notificationPanelDialog = null;
         }
         dismissNoChannelsModal();
+        CustomOrderManager.getInstance(this).removeListener(orderChangedListener);
         DataPollingManager.getInstance(this).removeSyncListener(syncListener);
         super.onDestroy();
         if (connectivityManager != null && networkCallback != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {

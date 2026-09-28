@@ -266,7 +266,20 @@ public class PlayerUtils {
             }
             if (loadErrorInfo.exception instanceof HttpDataSource.InvalidResponseCodeException) {
                 int code = ((HttpDataSource.InvalidResponseCodeException) loadErrorInfo.exception).responseCode;
-                if (code == 401 || code == 403 || code == 404 || code == 410) {
+                if (code == 410) {
+                    return C.TIME_UNSET;
+                }
+                if (code == 401 || code == 403) {
+                    if (loadErrorInfo.errorCount <= 4) {
+                        return Math.min(300L * loadErrorInfo.errorCount, 1200L);
+                    }
+                    return C.TIME_UNSET;
+                }
+                if (code == 404) {
+                    // Allow up to 6 retries for transient 404 responses
+                    if (loadErrorInfo.errorCount <= 6) {
+                        return Math.min(350L * loadErrorInfo.errorCount, 1800L);
+                    }
                     return C.TIME_UNSET;
                 }
             }

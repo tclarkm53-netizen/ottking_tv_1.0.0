@@ -23,6 +23,7 @@ import android.widget.ArrayAdapter;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.SwitchCompat;
@@ -30,11 +31,19 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.ottking.devcode.R;
+import com.ottking.devcode.db.AppDatabase;
+import com.ottking.devcode.db.CategoryEntity;
+import com.ottking.devcode.db.ChannelEntity;
 import com.ottking.devcode.model.UserInfo;
 import com.ottking.devcode.network.ApiClient;
 import com.ottking.devcode.preferences.AppPreferences;
+import com.ottking.devcode.ui.settings.CustomizeCategoryAdapter;
+import com.ottking.devcode.ui.settings.CustomizeChannelAdapter;
+import com.ottking.devcode.utils.CustomOrderManager;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import com.ottking.devcode.utils.FocusManager;
@@ -48,6 +57,8 @@ public class SettingsActivity extends AppCompatActivity {
     private FrameLayout contentContainer;
     private AppPreferences prefs;
     private NavigationAdapter navAdapter;
+    private CustomizeCategoryAdapter activeCategoryAdapter;
+    private CustomizeChannelAdapter activeChannelAdapter;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -74,7 +85,7 @@ public class SettingsActivity extends AppCompatActivity {
         RecyclerView recyclerSettingsNav = findViewById(R.id.recyclerSettingsNav);
         recyclerSettingsNav.setLayoutManager(new LinearLayoutManager(this));
 
-        List<String> navItems = Arrays.asList("Account", "PlayerSettings", "TvSettings", "System");
+        List<String> navItems = Arrays.asList("Account", "Customize", "PlayerSettings", "TvSettings", "System");
         navAdapter = new NavigationAdapter(navItems, navItem -> loadSectionView(navItem));
         navAdapter.setNavigationListener(new NavigationAdapter.OnNavNavigationListener() {
             @Override
@@ -89,14 +100,34 @@ public class SettingsActivity extends AppCompatActivity {
         });
         recyclerSettingsNav.setAdapter(navAdapter);
 
-        // Load default section: Account
-        loadSectionView("Account");
-        recyclerSettingsNav.post(this::focusNavSection);
+        // Check if a specific section was requested (e.g. from Player)
+        String initialSection = "Account";
+        if (getIntent() != null && getIntent().hasExtra("open_section")) {
+            String passed = getIntent().getStringExtra("open_section");
+            if (passed != null && !passed.trim().isEmpty()) {
+                initialSection = passed.trim();
+            }
+        }
+        navAdapter.setSelectedItem(initialSection);
+        loadSectionView(initialSection);
+        if ("Customize".equals(initialSection)) {
+            contentContainer.post(this::focusContentSection);
+        } else {
+            recyclerSettingsNav.post(this::focusNavSection);
+        }
 
         FocusManager.getInstance().setupBackPressHandler(this, SCREEN_KEY, this::handleSettingsBackPressInternal);
     }
 
     private boolean handleSettingsBackPressInternal() {
+        if (activeCategoryAdapter != null && activeCategoryAdapter.getActiveMovePosition() != -1) {
+            activeCategoryAdapter.exitMoveMode();
+            return true;
+        }
+        if (activeChannelAdapter != null && activeChannelAdapter.getActiveMovePosition() != -1) {
+            activeChannelAdapter.exitMoveMode();
+            return true;
+        }
         View currentFocus = getCurrentFocus();
         if (currentFocus != null && isViewInContentContainer(currentFocus)) {
             focusNavSection();
@@ -107,6 +138,8 @@ public class SettingsActivity extends AppCompatActivity {
 
     private void loadSectionView(String section) {
         contentContainer.removeAllViews();
+        activeCategoryAdapter = null;
+        activeChannelAdapter = null;
         LayoutInflater inflater = LayoutInflater.from(this);
 
         switch (section) {
@@ -114,6 +147,12 @@ public class SettingsActivity extends AppCompatActivity {
                 View accountView = inflater.inflate(R.layout.layout_settings_account, contentContainer, false);
                 setupAccountView(accountView);
                 contentContainer.addView(accountView);
+                break;
+
+            case "Customize":
+                View customView = inflater.inflate(R.layout.layout_settings_customize, contentContainer, false);
+                setupCustomizeView(customView);
+                contentContainer.addView(customView);
                 break;
 
             case "PlayerSettings":
@@ -609,8 +648,316 @@ public class SettingsActivity extends AppCompatActivity {
                 .show();
     }
 
+    private void setupCustomizeView(View view) {
+        CustomOrderManager orderManager = CustomOrderManager.getInstance(this);
+        AppDatabase db = AppDatabase.getInstance(this);
+
+        Button btnTabCategories = view.findViewById(R.id.btnTabCategories);
+        Button btnTabChannels = view.findViewById(R.id.btnTabChannels);
+        Button btnResetOrders = view.findViewById(R.id.btnResetOrders);
+        LinearLayout layoutCategoriesSection = view.findViewById(R.id.layoutCategoriesSection);
+        LinearLayout layoutChannelsSection = view.findViewById(R.id.layoutChannelsSection);
+        RecyclerView recyclerCustomizeCategories = view.findViewById(R.id.recyclerCustomizeCategories);
+        RecyclerView recyclerCustomizeChannels = view.findViewById(R.id.recyclerCustomizeChannels);
+        Spinner spinnerCategoryFilter = view.findViewById(R.id.spinnerCategoryFilter);
+        TextView txtChannelCountInfo = view.findViewById(R.id.txtChannelCountInfo);
+
+        UIUtils.applyFocusAnimation(btnTabCategories, 1.1f, 6f);
+        UIUtils.applyFocusAnimation(btnTabChannels, 1.1f, 6f);
+        UIUtils.applyFocusAnimation(btnResetOrders, 1.1f, 6f);
+        UIUtils.applyFocusAnimation(spinnerCategoryFilter, 1.05f, 6f);
+
+        btnTabCategories.setSelected(true);
+        btnTabChannels.setSelected(false);
+
+        recyclerCustomizeCategories.setLayoutManager(new LinearLayoutManager(this));
+        recyclerCustomizeChannels.setLayoutManager(new LinearLayoutManager(this));
+        recyclerCustomizeCategories.setItemAnimator(null);
+        recyclerCustomizeChannels.setItemAnimator(null);
+
+        btnTabCategories.setOnKeyListener((v, keyCode, event) -> {
+            if (event.getAction() == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+                focusNavSection();
+                return true;
+            }
+            return false;
+        });
+
+        final List<CategoryEntity> allDbCategories = new ArrayList<>();
+        final List<ChannelEntity> allDbChannels = new ArrayList<>();
+
+        final CustomizeCategoryAdapter[] categoryAdapterRef = new CustomizeCategoryAdapter[1];
+        final CustomizeChannelAdapter[] channelAdapterRef = new CustomizeChannelAdapter[1];
+
+        CustomizeCategoryAdapter categoryAdapter = new CustomizeCategoryAdapter(orderManager, new CustomizeCategoryAdapter.OnCategoryOrderActionListener() {
+            @Override
+            public void onMoveUp(CategoryEntity category, int position) {}
+
+            @Override
+            public void onMoveDown(CategoryEntity category, int position) {}
+
+            @Override
+            public void onToggleVisibility(CategoryEntity category, int position) {}
+
+            @Override
+            public void onOrderChanged(List<CategoryEntity> newCategoryList) {
+                List<Integer> newOrder = new ArrayList<>();
+                for (CategoryEntity c : newCategoryList) {
+                    if (!CustomOrderManager.isAllCategory(c)) {
+                        newOrder.add(c.id);
+                    }
+                }
+                orderManager.setCustomCategoryOrder(newOrder);
+            }
+        });
+        this.activeCategoryAdapter = categoryAdapter;
+
+        categoryAdapterRef[0] = categoryAdapter;
+        recyclerCustomizeCategories.setAdapter(categoryAdapter);
+
+        // Touch & Mouse Drag & Drop helper for Categories (locks "All" category at top)
+        androidx.recyclerview.widget.ItemTouchHelper categoryTouchHelper = new androidx.recyclerview.widget.ItemTouchHelper(
+                new androidx.recyclerview.widget.ItemTouchHelper.SimpleCallback(
+                        androidx.recyclerview.widget.ItemTouchHelper.UP | androidx.recyclerview.widget.ItemTouchHelper.DOWN, 0) {
+            @Override
+            public boolean isLongPressDragEnabled() {
+                return true;
+            }
+
+            @Override
+            public int getDragDirs(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder) {
+                int pos = viewHolder.getAdapterPosition();
+                List<CategoryEntity> cats = categoryAdapterRef[0].getCategories();
+                if (pos >= 0 && pos < cats.size() && CustomOrderManager.isAllCategory(cats.get(pos))) {
+                    return 0; // Lock All category from being moved
+                }
+                return super.getDragDirs(recyclerView, viewHolder);
+            }
+
+            @Override
+            public boolean canDropOver(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder current, @NonNull RecyclerView.ViewHolder target) {
+                int targetPos = target.getAdapterPosition();
+                List<CategoryEntity> cats = categoryAdapterRef[0].getCategories();
+                if (targetPos == 0 && !cats.isEmpty() && CustomOrderManager.isAllCategory(cats.get(0))) {
+                    return false; // Cannot drop over All category
+                }
+                return super.canDropOver(recyclerView, current, target);
+            }
+
+            @Override
+            public boolean onMove(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder source, @NonNull RecyclerView.ViewHolder target) {
+                int from = source.getAdapterPosition();
+                int to = target.getAdapterPosition();
+                List<CategoryEntity> cats = categoryAdapterRef[0].getCategories();
+                if (to == 0 && !cats.isEmpty() && CustomOrderManager.isAllCategory(cats.get(0))) {
+                    return false;
+                }
+                Collections.swap(cats, from, to);
+                categoryAdapterRef[0].notifyItemMoved(from, to);
+                categoryAdapterRef[0].notifyItemChanged(from);
+                categoryAdapterRef[0].notifyItemChanged(to);
+                return true;
+            }
+
+            @Override
+            public void clearView(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder) {
+                super.clearView(recyclerView, viewHolder);
+                List<CategoryEntity> cats = categoryAdapterRef[0].getCategories();
+                List<Integer> newOrder = new ArrayList<>();
+                for (CategoryEntity c : cats) {
+                    if (!CustomOrderManager.isAllCategory(c)) {
+                        newOrder.add(c.id);
+                    }
+                }
+                orderManager.setCustomCategoryOrder(newOrder);
+                Toast.makeText(SettingsActivity.this, "Category order saved", Toast.LENGTH_SHORT).show();
+            }
+
+            @Override
+            public void onSwiped(@NonNull RecyclerView.ViewHolder viewHolder, int direction) {}
+        });
+        categoryTouchHelper.attachToRecyclerView(recyclerCustomizeCategories);
+
+        CustomizeChannelAdapter channelAdapter = new CustomizeChannelAdapter(orderManager, new CustomizeChannelAdapter.OnChannelOrderActionListener() {
+            @Override
+            public void onMoveUp(ChannelEntity channel, int position) {}
+
+            @Override
+            public void onMoveDown(ChannelEntity channel, int position) {}
+
+            @Override
+            public void onMoveTop(ChannelEntity channel, int position) {}
+
+            @Override
+            public void onToggleVisibility(ChannelEntity channel, int position) {}
+
+            @Override
+            public void onOrderChanged(int categoryId, List<ChannelEntity> newChannelList) {
+                List<Integer> newOrder = new ArrayList<>();
+                for (ChannelEntity ch : newChannelList) {
+                    newOrder.add(ch.id);
+                }
+                orderManager.setCustomChannelOrder(categoryId, newOrder);
+            }
+        });
+        channelAdapterRef[0] = channelAdapter;
+        this.activeChannelAdapter = channelAdapter;
+        recyclerCustomizeChannels.setAdapter(channelAdapter);
+
+        // Touch & Mouse Drag & Drop helper for Channels
+        androidx.recyclerview.widget.ItemTouchHelper channelTouchHelper = new androidx.recyclerview.widget.ItemTouchHelper(
+                new androidx.recyclerview.widget.ItemTouchHelper.SimpleCallback(
+                        androidx.recyclerview.widget.ItemTouchHelper.UP | androidx.recyclerview.widget.ItemTouchHelper.DOWN, 0) {
+            @Override
+            public boolean isLongPressDragEnabled() {
+                return true;
+            }
+
+            @Override
+            public boolean onMove(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder source, @NonNull RecyclerView.ViewHolder target) {
+                int from = source.getAdapterPosition();
+                int to = target.getAdapterPosition();
+                List<ChannelEntity> chans = channelAdapterRef[0].getChannels();
+                Collections.swap(chans, from, to);
+                channelAdapterRef[0].notifyItemMoved(from, to);
+                channelAdapterRef[0].notifyItemChanged(from);
+                channelAdapterRef[0].notifyItemChanged(to);
+                return true;
+            }
+
+            @Override
+            public void clearView(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder) {
+                super.clearView(recyclerView, viewHolder);
+                List<ChannelEntity> chans = channelAdapterRef[0].getChannels();
+                List<Integer> newOrder = new ArrayList<>();
+                for (ChannelEntity ch : chans) {
+                    newOrder.add(ch.id);
+                }
+                int catPos = spinnerCategoryFilter.getSelectedItemPosition();
+                List<CategoryEntity> cats = categoryAdapterRef[0].getCategories();
+                int catId = (catPos >= 0 && catPos < cats.size()) ? cats.get(catPos).id : 0;
+                orderManager.setCustomChannelOrder(catId, newOrder);
+                Toast.makeText(SettingsActivity.this, "Channel order saved", Toast.LENGTH_SHORT).show();
+            }
+
+            @Override
+            public void onSwiped(@NonNull RecyclerView.ViewHolder viewHolder, int direction) {}
+        });
+        channelTouchHelper.attachToRecyclerView(recyclerCustomizeChannels);
+
+        db.categoryDao().getAllCategories().observe(this, categories -> {
+            allDbCategories.clear();
+            if (categories != null) {
+                allDbCategories.addAll(categories);
+            }
+            List<CategoryEntity> orderedCats = orderManager.buildOrderedCategories(allDbCategories, true);
+            categoryAdapter.setCategories(orderedCats);
+
+            List<String> catNames = new ArrayList<>();
+            for (CategoryEntity c : orderedCats) {
+                catNames.add(c.name != null ? c.name : "Category " + c.id);
+            }
+            ArrayAdapter<String> spinnerAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, catNames);
+            spinnerCategoryFilter.setAdapter(spinnerAdapter);
+        });
+
+        db.channelDao().getAllChannels().observe(this, channels -> {
+            allDbChannels.clear();
+            if (channels != null) {
+                allDbChannels.addAll(channels);
+            }
+            int pos = spinnerCategoryFilter.getSelectedItemPosition();
+            List<CategoryEntity> orderedCats = categoryAdapter.getCategories();
+            if (pos >= 0 && pos < orderedCats.size()) {
+                CategoryEntity cat = orderedCats.get(pos);
+                reloadChannelsForSelectedCategory(cat.id, cat.name, allDbChannels, allDbCategories, channelAdapter, txtChannelCountInfo);
+            }
+        });
+
+        spinnerCategoryFilter.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(android.widget.AdapterView<?> parent, View v, int position, long id) {
+                List<CategoryEntity> orderedCats = categoryAdapter.getCategories();
+                if (position >= 0 && position < orderedCats.size()) {
+                    CategoryEntity cat = orderedCats.get(position);
+                    reloadChannelsForSelectedCategory(cat.id, cat.name, allDbChannels, allDbCategories, channelAdapter, txtChannelCountInfo);
+                }
+            }
+
+            @Override
+            public void onNothingSelected(android.widget.AdapterView<?> parent) {}
+        });
+
+        btnTabCategories.setOnClickListener(v -> {
+            btnTabCategories.setSelected(true);
+            btnTabChannels.setSelected(false);
+            layoutCategoriesSection.setVisibility(View.VISIBLE);
+            layoutChannelsSection.setVisibility(View.GONE);
+            btnTabCategories.requestFocus();
+        });
+
+        btnTabChannels.setOnClickListener(v -> {
+            btnTabCategories.setSelected(false);
+            btnTabChannels.setSelected(true);
+            layoutCategoriesSection.setVisibility(View.GONE);
+            layoutChannelsSection.setVisibility(View.VISIBLE);
+            int pos = spinnerCategoryFilter.getSelectedItemPosition();
+            List<CategoryEntity> orderedCats = categoryAdapter.getCategories();
+            if (pos >= 0 && pos < orderedCats.size()) {
+                CategoryEntity cat = orderedCats.get(pos);
+                reloadChannelsForSelectedCategory(cat.id, cat.name, allDbChannels, allDbCategories, channelAdapter, txtChannelCountInfo);
+            }
+            btnTabChannels.requestFocus();
+        });
+
+        btnResetOrders.setOnClickListener(v -> {
+            new AlertDialog.Builder(this)
+                    .setTitle("Reset Order")
+                    .setMessage("Are you sure you want to reset category and channel order to default?")
+                    .setPositiveButton("Reset", (dialog, which) -> {
+                        orderManager.resetAllOrders();
+                        Toast.makeText(this, "Order reset to default", Toast.LENGTH_SHORT).show();
+                        List<CategoryEntity> orderedCats = orderManager.buildOrderedCategories(allDbCategories, true);
+                        categoryAdapter.setCategories(orderedCats);
+                        int pos = spinnerCategoryFilter.getSelectedItemPosition();
+                        if (pos >= 0 && pos < orderedCats.size()) {
+                            CategoryEntity cat = orderedCats.get(pos);
+                            reloadChannelsForSelectedCategory(cat.id, cat.name, allDbChannels, allDbCategories, channelAdapter, txtChannelCountInfo);
+                        }
+                    })
+                    .setNegativeButton("Cancel", null)
+                    .show();
+        });
+    }
+
+    private void reloadChannelsForSelectedCategory(int categoryId, String categoryName, List<ChannelEntity> allChannels, List<CategoryEntity> allCategories, CustomizeChannelAdapter adapter, TextView txtCount) {
+        CustomOrderManager orderManager = CustomOrderManager.getInstance(this);
+        List<ChannelEntity> filtered = new ArrayList<>();
+        boolean isAll = categoryId == -1 || "all".equalsIgnoreCase(categoryName) || "all channels".equalsIgnoreCase(categoryName) || "সকল চ্যানেল".equalsIgnoreCase(categoryName) || "সকল".equalsIgnoreCase(categoryName);
+        if (isAll) {
+            filtered.addAll(orderManager.buildOrderedAllChannels(allChannels, allCategories, true));
+        } else {
+            List<ChannelEntity> catChans = new ArrayList<>();
+            for (ChannelEntity ch : allChannels) {
+                if (ch.categoryId == categoryId) {
+                    catChans.add(ch);
+                }
+            }
+            filtered.addAll(orderManager.buildOrderedChannelsForCategory(categoryId, catChans, true));
+        }
+        adapter.setChannels(filtered, categoryId, categoryName);
+        if (txtCount != null) {
+            txtCount.setText(filtered.size() + " channels");
+        }
+    }
+
     public void focusContentSection() {
         if (contentContainer == null) return;
+        View btnTabCategories = contentContainer.findViewById(R.id.btnTabCategories);
+        if (btnTabCategories != null && btnTabCategories.isShown()) {
+            btnTabCategories.requestFocus();
+            return;
+        }
         View focusable = findFirstFocusable(contentContainer);
         if (focusable != null) {
             focusable.requestFocus();
@@ -647,6 +994,34 @@ public class SettingsActivity extends AppCompatActivity {
         if (event.getAction() == KeyEvent.ACTION_DOWN && event.getKeyCode() == KeyEvent.KEYCODE_DPAD_LEFT) {
             View currentFocus = getCurrentFocus();
             if (currentFocus != null && isViewInContentContainer(currentFocus)) {
+                // If active move mode is in progress, do not jump away to sidebar
+                if (activeCategoryAdapter != null && activeCategoryAdapter.getActiveMovePosition() != -1) {
+                    return true;
+                }
+                if (activeChannelAdapter != null && activeChannelAdapter.getActiveMovePosition() != -1) {
+                    return true;
+                }
+
+                // Check if currently viewing Customize section
+                View btnTabCategories = findViewById(R.id.btnTabCategories);
+                if (btnTabCategories != null && isViewInContentContainer(btnTabCategories)) {
+                    // Only jump to sidebar navigation if focus is currently on the "Categories Order" button!
+                    if (currentFocus.getId() == R.id.btnTabCategories) {
+                        focusNavSection();
+                        return true;
+                    }
+
+                    // Otherwise, try to move left within the content container (e.g. from Move Down to Move Up, or Move Up to Item row)
+                    View nextFocus = currentFocus.focusSearch(View.FOCUS_LEFT);
+                    if (nextFocus != null && isViewInContentContainer(nextFocus)) {
+                        nextFocus.requestFocus();
+                        return true;
+                    }
+
+                    // No view to the left inside content container -> NEVER leave to navigation sidebar!
+                    return true;
+                }
+
                 View nextFocus = currentFocus.focusSearch(View.FOCUS_LEFT);
                 if (nextFocus == null || !isViewInContentContainer(nextFocus)) {
                     focusNavSection();

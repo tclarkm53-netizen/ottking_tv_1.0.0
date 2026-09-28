@@ -152,6 +152,19 @@
                 android:padding="8dp"
                 android:src="@drawable/ic_mic" />
 
+            <!-- Customize Order Icon in Drawer -->
+            <ImageButton
+                android:id="@+id/btnPlayerCustomizeOrder"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginEnd="6dp"
+                android:background="@drawable/selector_header_button"
+                android:clickable="true"
+                android:contentDescription="Customize Order"
+                android:focusable="true"
+                android:padding="8dp"
+                android:src="@drawable/ic_sort" />
+
             <!-- Top Right Settings Icon in Drawer -->
             <ImageButton
                 android:id="@+id/btnPlayerSettings"

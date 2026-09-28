@@ -1,6 +1,8 @@
 package com.ottking.devcode.db;
 
+import androidx.room.ColumnInfo;
 import androidx.room.Entity;
+import androidx.room.Ignore;
 import androidx.room.PrimaryKey;
 
 @Entity(tableName = "channels")
@@ -14,7 +16,10 @@ public class ChannelEntity {
     public boolean isPremium;
     public String streamType;
 
-    public ChannelEntity(int id, String name, String logoUrl, String streamUrl, int categoryId, boolean isPremium, String streamType) {
+    @ColumnInfo(name = "item_order")
+    public int order;
+
+    public ChannelEntity(int id, String name, String logoUrl, String streamUrl, int categoryId, boolean isPremium, String streamType, int order) {
         this.id = id;
         this.name = name;
         this.logoUrl = logoUrl;
@@ -22,6 +27,12 @@ public class ChannelEntity {
         this.categoryId = categoryId;
         this.isPremium = isPremium;
         this.streamType = streamType;
+        this.order = order;
+    }
+
+    @Ignore
+    public ChannelEntity(int id, String name, String logoUrl, String streamUrl, int categoryId, boolean isPremium, String streamType) {
+        this(id, name, logoUrl, streamUrl, categoryId, isPremium, streamType, 0);
     }
 
     public String getDecryptedStreamUrl(android.content.Context context) {
@@ -36,6 +47,7 @@ public class ChannelEntity {
         if (id != that.id) return false;
         if (categoryId != that.categoryId) return false;
         if (isPremium != that.isPremium) return false;
+        if (order != that.order) return false;
         if (name != null ? !name.equals(that.name) : that.name != null) return false;
         if (logoUrl != null ? !logoUrl.equals(that.logoUrl) : that.logoUrl != null) return false;
         if (streamUrl != null ? !streamUrl.equals(that.streamUrl) : that.streamUrl != null) return false;
@@ -51,6 +63,7 @@ public class ChannelEntity {
         result = 31 * result + categoryId;
         result = 31 * result + (isPremium ? 1 : 0);
         result = 31 * result + (streamType != null ? streamType.hashCode() : 0);
+        result = 31 * result + order;
         return result;
     }
 }

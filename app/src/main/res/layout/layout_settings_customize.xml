@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <!-- Top Action Bar: Tabs & Reset Button -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="12dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/btnTabCategories"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:layout_marginEnd="10dp"
+            android:background="@drawable/selector_pill_focus"
+            android:focusable="true"
+            android:nextFocusRight="@id/btnTabChannels"
+            android:nextFocusDown="@id/recyclerCustomizeCategories"
+            android:paddingStart="18dp"
+            android:paddingEnd="18dp"
+            android:text="Categories Order"
+            android:textColor="@color/selector_pill_text"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/btnTabChannels"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:layout_marginEnd="12dp"
+            android:background="@drawable/selector_pill_focus"
+            android:focusable="true"
+            android:nextFocusLeft="@id/btnTabCategories"
+            android:nextFocusRight="@id/btnResetOrders"
+            android:nextFocusDown="@id/spinnerCategoryFilter"
+            android:paddingStart="18dp"
+            android:paddingEnd="18dp"
+            android:text="Channels Order"
+            android:textColor="@color/selector_pill_text"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/txtCustomizeInfo"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="end"
+            android:layout_marginEnd="12dp"
+            android:text="Long press to reorder"
+            android:textColor="@color/gold_light"
+            android:textSize="12sp" />
+
+        <!-- Reset Button -->
+        <Button
+            android:id="@+id/btnResetOrders"
+            android:layout_width="wrap_content"
+            android:layout_height="38dp"
+            android:background="@drawable/selector_header_button"
+            android:drawableStart="@drawable/ic_close"
+            android:drawablePadding="6dp"
+            android:focusable="true"
+            android:nextFocusLeft="@id/btnTabChannels"
+            android:paddingStart="14dp"
+            android:paddingEnd="14dp"
+            android:text="Reset Order"
+            android:textColor="@color/accent_red"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+    </LinearLayout>
+
+    <!-- CATEGORIES ORDER CONTAINER -->
+    <LinearLayout
+        android:id="@+id/layoutCategoriesSection"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:visibility="visible">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:background="@drawable/bg_card_normal"
+            android:padding="10dp"
+            android:text="💡 Long press (hold OK) on any item to activate reordering. Use ▲ / ▼ to move, then press OK to save. ('All' category is fixed)"
+            android:textColor="@color/gold_light"
+            android:textSize="12sp" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recyclerCustomizeCategories"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:descendantFocusability="afterDescendants"
+            android:focusable="false"
+            android:scrollbars="vertical" />
+
+    </LinearLayout>
+
+    <!-- CHANNELS ORDER CONTAINER -->
+    <LinearLayout
+        android:id="@+id/layoutChannelsSection"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <!-- Category Selector for Channels -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="10dp"
+                android:text="Select Category:"
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <Spinner
+                android:id="@+id/spinnerCategoryFilter"
+                android:layout_width="220dp"
+                android:layout_height="40dp"
+                android:background="@drawable/bg_card_normal"
+                android:focusable="true"
+                android:nextFocusUp="@id/btnTabChannels"
+                android:nextFocusDown="@id/recyclerCustomizeChannels"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp" />
+
+            <TextView
+                android:id="@+id/txtChannelCountInfo"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:text="0 channels"
+                android:textColor="@color/text_muted"
+                android:textSize="12sp" />
+
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:background="@drawable/bg_card_normal"
+            android:padding="10dp"
+            android:text="💡 Long press (hold OK) on any channel to move with ▲ / ▼, or use the 🔝, ▲, ▼ buttons on the right."
+            android:textColor="@color/gold_light"
+            android:textSize="12sp" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recyclerCustomizeChannels"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:descendantFocusability="afterDescendants"
+            android:focusable="false"
+            android:scrollbars="vertical" />
+
+    </LinearLayout>
+
+</LinearLayout>

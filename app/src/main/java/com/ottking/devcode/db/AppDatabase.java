@@ -13,7 +13,7 @@ import com.ottking.devcode.security.DatabaseKeyManager;
 
 import java.util.concurrent.Executors;
 
-@Database(entities = {CategoryEntity.class, ChannelEntity.class}, version = 1, exportSchema = false)
+@Database(entities = {CategoryEntity.class, ChannelEntity.class}, version = 2, exportSchema = false)
 public abstract class AppDatabase extends RoomDatabase {
 
     private static volatile AppDatabase INSTANCE;
@@ -33,6 +33,7 @@ public abstract class AppDatabase extends RoomDatabase {
                             AppDatabase.class,
                             DATABASE_NAME
                     )
+                    .allowMainThreadQueries()
                     .fallbackToDestructiveMigration()
                     .build();
                 }

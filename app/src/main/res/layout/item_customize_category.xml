@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/layoutCategoryRow"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="6dp"
+    android:background="@drawable/selector_customize_row"
+    android:clickable="true"
+    android:descendantFocusability="afterDescendants"
+    android:focusable="true"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="12dp"
+    android:paddingTop="8dp"
+    android:paddingEnd="12dp"
+    android:paddingBottom="8dp">
+
+    <!-- Reorder Grip / Icon Indicator -->
+    <ImageView
+        android:id="@+id/imgCatReorderHandle"
+        android:layout_width="22dp"
+        android:layout_height="22dp"
+        android:layout_marginEnd="6dp"
+        android:contentDescription="Reorder Handle"
+        android:src="@drawable/ic_sort"
+        app:tint="@color/text_muted" />
+
+    <!-- Order Position Badge -->
+    <TextView
+        android:id="@+id/txtCatPosition"
+        android:layout_width="48dp"
+        android:layout_height="32dp"
+        android:background="@drawable/bg_pill_normal"
+        android:gravity="center"
+        android:text="#1"
+        android:textColor="@color/gold_primary"
+        android:textSize="12sp"
+        android:textStyle="bold" />
+
+    <!-- Category Icon -->
+    <ImageView
+        android:id="@+id/imgCatIcon"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_marginStart="10dp"
+        android:contentDescription="Category Icon"
+        android:src="@drawable/ic_tv"
+        app:tint="@color/text_primary" />
+
+    <!-- Category Name & Status / Instructions -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/txtCatName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Category Name"
+            android:textColor="@color/text_primary"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/txtCatStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Visible • Long press to reorder"
+            android:textColor="@color/accent_green"
+            android:textSize="11sp" />
+
+    </LinearLayout>
+
+    <!-- Move Up Button -->
+    <ImageButton
+        android:id="@+id/btnCatMoveUp"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_marginStart="4dp"
+        android:background="@drawable/selector_header_button"
+        android:clickable="true"
+        android:contentDescription="Move Category Up"
+        android:focusable="true"
+        android:padding="8dp"
+        android:src="@drawable/ic_arrow_up"
+        app:tint="@color/text_primary" />
+
+    <!-- Move Down Button -->
+    <ImageButton
+        android:id="@+id/btnCatMoveDown"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_marginStart="4dp"
+        android:background="@drawable/selector_header_button"
+        android:clickable="true"
+        android:contentDescription="Move Category Down"
+        android:focusable="true"
+        android:padding="8dp"
+        android:src="@drawable/ic_arrow_down"
+        app:tint="@color/text_primary" />
+
+    <!-- Toggle Visibility Button -->
+    <ImageButton
+        android:id="@+id/btnCatVisibility"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_marginStart="4dp"
+        android:background="@drawable/selector_header_button"
+        android:clickable="true"
+        android:contentDescription="Toggle Visibility"
+        android:focusable="true"
+        android:padding="8dp"
+        android:src="@drawable/ic_visibility"
+        app:tint="@color/gold_primary" />
+
+</LinearLayout>

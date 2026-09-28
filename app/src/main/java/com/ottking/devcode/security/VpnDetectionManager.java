@@ -25,6 +25,7 @@ import androidx.annotation.NonNull;
 
 import com.ottking.devcode.R;
 
+import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.util.Collections;
 import java.util.Enumeration;
@@ -63,48 +64,91 @@ public final class VpnDetectionManager {
     }
 
     /**
-     * Comprehensive synchronous VPN & Proxy inspection across all system interfaces and transports.
-     * Returns true if ANY VPN tunnel, virtual adapter, or HTTP proxy is active.
+     * Comprehensive synchronous VPN & Proxy inspection across system interfaces and transports.
+     * Accurately identifies genuine active VPN tunnels and proxies while strictly preventing
+     * false positives on Android TV (e.g. Wi-Fi Direct p2p0, remote controls, bridge interfaces, dormant drivers).
      */
     public static boolean isVpnOrProxyActive(Context context) {
         if (context == null) return false;
 
         try {
-            // 1. Check ConnectivityManager Active Network Capabilities
+            // 1. Authoritative Android Platform ConnectivityManager Inspection
             ConnectivityManager cm = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
             if (cm != null) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                     Network activeNetwork = cm.getActiveNetwork();
                     if (activeNetwork != null) {
                         NetworkCapabilities caps = cm.getNetworkCapabilities(activeNetwork);
-                        if (caps != null && caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) {
-                            Log.w(TAG, "Active network has TRANSPORT_VPN");
-                            return true;
+                        if (caps != null) {
+                            // Active network is routing through a VPN transport
+                            if (caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) {
+                                Log.w(TAG, "Active network has TRANSPORT_VPN");
+                                return true;
+                            }
+                            // Active network explicitly lacks the NET_CAPABILITY_NOT_VPN guarantee
+                            if (!caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)) {
+                                Log.w(TAG, "Active network lacks NET_CAPABILITY_NOT_VPN");
+                                return true;
+                            }
                         }
                     }
 
-                    // Check all available system networks
+                    // Check secondary networks: only consider if it has TRANSPORT_VPN AND active INTERNET capability
                     Network[] allNetworks = cm.getAllNetworks();
-                    for (Network network : allNetworks) {
-                        NetworkCapabilities nc = cm.getNetworkCapabilities(network);
-                        if (nc != null && nc.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) {
-                            Log.w(TAG, "Secondary network has TRANSPORT_VPN");
-                            return true;
+                    if (allNetworks != null) {
+                        for (Network network : allNetworks) {
+                            NetworkCapabilities nc = cm.getNetworkCapabilities(network);
+                            if (nc != null) {
+                                boolean isVpnTransport = nc.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
+                                        || !nc.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN);
+                                if (isVpnTransport && nc.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) {
+                                    Log.w(TAG, "Active secondary network with Internet has TRANSPORT_VPN: " + network);
+                                    return true;
+                                }
+                            }
                         }
                     }
                 }
             }
 
-            // 2. Deep Network Interface Inspection (detects tun0, ppp0, tap0, wg0, utun, etc.)
+            // 2. Hardware / Kernel Network Interface Inspection
+            // Specifically looks for ACTIVE virtual VPN tunnels (tun, utun, wg).
+            // Strictly excludes Wi-Fi Direct (p2p0, p2p-wlan0), Ethernet (eth0), Wi-Fi (wlan0), and dormant interfaces.
             Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
             if (interfaces != null) {
                 for (NetworkInterface networkInterface : Collections.list(interfaces)) {
-                    if (networkInterface != null && networkInterface.isUp()) {
-                        String name = networkInterface.getName().toLowerCase(Locale.US);
-                        if (name.startsWith("tun") || name.startsWith("ppp") || name.startsWith("tap")
-                                || name.startsWith("utun") || name.startsWith("wg") || name.contains("vpn")
-                                || name.contains("ipsec") || name.startsWith("p2p")) {
-                            Log.w(TAG, "Suspicious VPN Network Interface detected: " + name);
+                    if (networkInterface == null || !networkInterface.isUp() || networkInterface.isLoopback()) {
+                        continue;
+                    }
+
+                    String name = networkInterface.getName().toLowerCase(Locale.US);
+
+                    // Strictly ignore all non-VPN interfaces common on Android TV & phones
+                    if (name.startsWith("p2p") || name.startsWith("wlan") || name.startsWith("eth")
+                            || name.startsWith("dummy") || name.startsWith("lo") || name.startsWith("sit")
+                            || name.startsWith("rmnet") || name.startsWith("ccmni") || name.startsWith("tap")
+                            || name.startsWith("ppp") || name.startsWith("bridge") || name.startsWith("vbox")) {
+                        continue;
+                    }
+
+                    // Only check recognized VPN tunnel patterns (tun0, utun0, wg0, vpn0)
+                    boolean isVpnPattern = name.matches("^(tun|utun|wg|vpn)[0-9]+.*$");
+                    if (isVpnPattern) {
+                        // Crucial: Must have a valid, assigned, non-link-local IP address to be an active routing VPN!
+                        Enumeration<InetAddress> addresses = networkInterface.getInetAddresses();
+                        boolean hasRoutableAddress = false;
+                        if (addresses != null) {
+                            while (addresses.hasMoreElements()) {
+                                InetAddress addr = addresses.nextElement();
+                                if (addr != null && !addr.isLoopbackAddress() && !addr.isLinkLocalAddress()) {
+                                    hasRoutableAddress = true;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (hasRoutableAddress) {
+                            Log.w(TAG, "Active VPN Network Interface detected with valid IP: " + name);
                             return true;
                         }
                     }
@@ -112,16 +156,17 @@ public final class VpnDetectionManager {
             }
 
             // 3. System HTTP/HTTPS Proxy Inspection (Charles, Burp, Fiddler, HttpCanary)
+            // Exclude local loopback addresses (127.0.0.1, localhost) which some TVs use internally
             String proxyHost = System.getProperty("http.proxyHost");
             String proxyPort = System.getProperty("http.proxyPort");
-            if (proxyHost != null && !proxyHost.trim().isEmpty() && !"0".equals(proxyPort)) {
+            if (isValidExternalProxy(proxyHost, proxyPort)) {
                 Log.w(TAG, "System HTTP Proxy detected: " + proxyHost + ":" + proxyPort);
                 return true;
             }
 
             String httpsProxyHost = System.getProperty("https.proxyHost");
             String httpsProxyPort = System.getProperty("https.proxyPort");
-            if (httpsProxyHost != null && !httpsProxyHost.trim().isEmpty() && !"0".equals(httpsProxyPort)) {
+            if (isValidExternalProxy(httpsProxyHost, httpsProxyPort)) {
                 Log.w(TAG, "System HTTPS Proxy detected: " + httpsProxyHost + ":" + httpsProxyPort);
                 return true;
             }
@@ -131,6 +176,17 @@ public final class VpnDetectionManager {
         }
 
         return false;
+    }
+
+    private static boolean isValidExternalProxy(String host, String port) {
+        if (host == null || host.trim().isEmpty()) return false;
+        String cleanHost = host.trim().toLowerCase(Locale.US);
+        if ("0".equals(port) || "-1".equals(port)) return false;
+        if ("localhost".equals(cleanHost) || "127.0.0.1".equals(cleanHost)
+                || "0.0.0.0".equals(cleanHost) || "::1".equals(cleanHost)) {
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -256,6 +312,9 @@ public final class VpnDetectionManager {
                 }
 
                 activeVpnDialog.show();
+                if (btnRetry != null) {
+                    btnRetry.requestFocus();
+                }
             } catch (Exception e) {
                 Log.e(TAG, "Error showing VPN warning dialog", e);
             }

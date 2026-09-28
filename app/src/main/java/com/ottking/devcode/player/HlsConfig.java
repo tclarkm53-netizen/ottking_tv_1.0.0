@@ -137,15 +137,15 @@ public final class HlsConfig {
                 int code = ((HttpDataSource.InvalidResponseCodeException) loadErrorInfo.exception).responseCode;
                 // Fast recovery retry for transient authorization gaps or CDN chunk synchronization
                 if (code == 401 || code == 403) {
-                    if (loadErrorInfo.errorCount <= 3) {
-                        return 300L;
+                    if (loadErrorInfo.errorCount <= 5) {
+                        return Math.min(300L * loadErrorInfo.errorCount, 1200L);
                     }
                     return C.TIME_UNSET;
                 }
                 if (code == 404) {
-                    // For live HLS chunks that are publishing, retry up to 3 times quickly
-                    if (loadErrorInfo.errorCount <= 3) {
-                        return 400L;
+                    // For live HLS chunks that are publishing or transient edge CDN synchronization delays, retry up to 8 times
+                    if (loadErrorInfo.errorCount <= 8) {
+                        return Math.min(300L * loadErrorInfo.errorCount, 1500L);
                     }
                     return C.TIME_UNSET;
                 }

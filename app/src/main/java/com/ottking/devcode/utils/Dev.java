@@ -4,21 +4,21 @@ public class Dev {
 
     // App Information
     public static final String APP_NAME = "OTT KING";
-    public static final String APP_COMPANY = "OTT KING Networks";
+    public static final String APP_COMPANY = "LTV Digital Limited";
 
     // Contact Information
-    public static final String CONTACT_WEBSITE = "https://ottking.com";
-    public static final String CONTACT_PHONE = "+880 1700-000000";
-    public static final String CONTACT_EMAIL = "ottkingdev@gmail.com";
+    public static final String CONTACT_WEBSITE = "https://ottking.top";
+    public static final String CONTACT_PHONE = "+880 1315-124700";
+    public static final String CONTACT_EMAIL = "ottkingbd@gmail.com";
 
     // Developer Information
-    public static final String DEVELOPED_BY = "AnirbanSumon";
+    public static final String DEVELOPED_BY = " Anirban Sumon";
     public static final String DEV_CONTACT = "ottkingdev@gmail.com";
     public static final String DEV_LOCATION = "ottking global development & distribution Network";
-    public static final String COPYRIGHT = "Copyright © OTTKING all Right reserved.";
+    public static final String COPYRIGHT = "Copyright © LTV Digital Limited all Rights reserved.";
 
     public static final String ARCHITECTURE = "Java Native + Material Design 3";
-    public static final String PLAYBACK_ENGINE = "ExoPlayer Media3 (HLS/DASH/TS)";
+    public static final String PLAYBACK_ENGINE = "OTTKING Media Player Engine";
 
     public static String getAppInfo(String versionName, int versionCode) {
         return "App Name: " + APP_NAME + "\n" +

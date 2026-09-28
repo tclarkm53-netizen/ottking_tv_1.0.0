@@ -47,6 +47,16 @@ public class NavigationAdapter extends RecyclerView.Adapter<NavigationAdapter.Na
         return selectedPosition;
     }
 
+    public void setSelectedItem(String item) {
+        int index = navList.indexOf(item);
+        if (index != -1 && index != selectedPosition) {
+            int prev = selectedPosition;
+            selectedPosition = index;
+            notifyItemChanged(prev);
+            notifyItemChanged(selectedPosition);
+        }
+    }
+
     @NonNull
     @Override
     public NavViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
@@ -60,6 +70,9 @@ public class NavigationAdapter extends RecyclerView.Adapter<NavigationAdapter.Na
         if ("Account".equals(item)) {
             holder.txtNavTitle.setText("Account");
             holder.imgNavIcon.setImageResource(R.drawable.ic_account);
+        } else if ("Customize".equals(item)) {
+            holder.txtNavTitle.setText("Customize Order");
+            holder.imgNavIcon.setImageResource(R.drawable.ic_sort);
         } else if ("PlayerSettings".equals(item) || "Player".equals(item)) {
             holder.txtNavTitle.setText("Player Settings");
             holder.imgNavIcon.setImageResource(R.drawable.ic_play);

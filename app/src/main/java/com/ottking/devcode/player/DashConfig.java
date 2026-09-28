@@ -128,14 +128,14 @@ public final class DashConfig {
             if (loadErrorInfo.exception instanceof HttpDataSource.InvalidResponseCodeException) {
                 int code = ((HttpDataSource.InvalidResponseCodeException) loadErrorInfo.exception).responseCode;
                 if (code == 401 || code == 403) {
-                    if (loadErrorInfo.errorCount <= 3) {
-                        return 300L;
+                    if (loadErrorInfo.errorCount <= 5) {
+                        return Math.min(300L * loadErrorInfo.errorCount, 1200L);
                     }
                     return C.TIME_UNSET;
                 }
                 if (code == 404) {
-                    if (loadErrorInfo.errorCount <= 3) {
-                        return 400L;
+                    if (loadErrorInfo.errorCount <= 8) {
+                        return Math.min(300L * loadErrorInfo.errorCount, 1500L);
                     }
                     return C.TIME_UNSET;
                 }

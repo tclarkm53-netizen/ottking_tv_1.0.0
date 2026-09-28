@@ -29,9 +29,14 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -139,9 +144,14 @@ public class ApiClient {
                             JSONArray catArray = catObj.optJSONArray("categories");
                             if (catArray != null) {
                                 boolean hasAllCategory = false;
+                                java.util.Map<Integer, CategoryEntity> uniqueCats = new java.util.LinkedHashMap<>();
+                                final java.util.Map<Integer, Integer> catApiIndexMap = new java.util.HashMap<>();
                                 for (int i = 0; i < catArray.length(); i++) {
                                     JSONObject item = catArray.getJSONObject(i);
                                     int cId = item.getInt("id");
+                                    if (!catApiIndexMap.containsKey(cId)) {
+                                        catApiIndexMap.put(cId, i);
+                                    }
                                     String cName = item.optString("name", "");
                                     if (cName == null) continue;
                                     cName = cName.trim();
@@ -156,20 +166,31 @@ public class ApiClient {
                                         hasAllCategory = true;
                                     }
 
-                                    catEntities.add(new CategoryEntity(cId, cName, cIcon));
+                                    int cOrder = item.optInt("sort_order", item.optInt("order", item.optInt("category_order", 0)));
+                                    uniqueCats.put(cId, new CategoryEntity(cId, cName, cIcon, cOrder));
                                 }
 
-                                if (!hasAllCategory && !catEntities.isEmpty()) {
-                                    int specialAllId = 1;
-                                    boolean id1Used = false;
-                                    for (CategoryEntity c : catEntities) {
-                                        if (c.id == 1) {
-                                            id1Used = true;
-                                            break;
+                                // Sort categories: positive sort_order first, otherwise strictly preserve server API list order
+                                List<CategoryEntity> rawCatList = new ArrayList<>(uniqueCats.values());
+                                Collections.sort(rawCatList, (a, b) -> {
+                                    if (a.order > 0 && b.order > 0) {
+                                        if (a.order != b.order) {
+                                            return Integer.compare(a.order, b.order);
                                         }
+                                        int idxA = catApiIndexMap.containsKey(a.id) ? catApiIndexMap.get(a.id) : a.id;
+                                        int idxB = catApiIndexMap.containsKey(b.id) ? catApiIndexMap.get(b.id) : b.id;
+                                        return Integer.compare(idxA, idxB);
                                     }
-                                    if (id1Used) specialAllId = 0;
-                                    catEntities.add(0, new CategoryEntity(specialAllId, "All", "ic_tv"));
+                                    if (a.order > 0 && b.order <= 0) return -1;
+                                    if (b.order > 0 && a.order <= 0) return 1;
+                                    int idxA = catApiIndexMap.containsKey(a.id) ? catApiIndexMap.get(a.id) : a.id;
+                                    int idxB = catApiIndexMap.containsKey(b.id) ? catApiIndexMap.get(b.id) : b.id;
+                                    return Integer.compare(idxA, idxB);
+                                });
+                                catEntities.addAll(rawCatList);
+
+                                if (!hasAllCategory && !catEntities.isEmpty()) {
+                                    catEntities.add(0, new CategoryEntity(-1, "All", "ic_tv", -1));
                                 } else if (hasAllCategory) {
                                     for (int i = 0; i < catEntities.size(); i++) {
                                         if ("All".equalsIgnoreCase(catEntities.get(i).name)) {
@@ -180,6 +201,9 @@ public class ApiClient {
                                             break;
                                         }
                                     }
+                                }
+                                for (int i = 0; i < catEntities.size(); i++) {
+                                    catEntities.get(i).order = i;
                                 }
                             }
                         }
@@ -206,6 +230,7 @@ public class ApiClient {
                         if (chanObj.optString("status").equals("success") || chanObj.has("channels")) {
                             JSONArray chanArray = chanObj.optJSONArray("channels");
                             if (chanArray != null) {
+                                java.util.Map<Integer, ChannelEntity> uniqueChans = new java.util.LinkedHashMap<>();
                                 for (int i = 0; i < chanArray.length(); i++) {
                                     JSONObject item = chanArray.getJSONObject(i);
                                     boolean isPremium = item.optInt("is_premium", 0) == 1;
@@ -215,17 +240,85 @@ public class ApiClient {
                                         continue;
                                     }
 
+                                    int chId = item.getInt("id");
                                     String logoUrlStr = item.optString("logo_url", item.optString("logo", "")).trim();
-                                    chanEntities.add(new ChannelEntity(
-                                            item.getInt("id"),
+                                    int chSortOrder = item.optInt("sort_order", item.optInt("order", item.optInt("channel_order", 0)));
+                                    uniqueChans.put(chId, new ChannelEntity(
+                                            chId,
                                             item.getString("name"),
                                             logoUrlStr,
                                             item.getString("stream_url"),
                                             item.getInt("category_id"),
                                             isPremium,
-                                            item.optString("stream_type", "hls")
+                                            item.optString("stream_type", "hls"),
+                                            chSortOrder
                                     ));
                                 }
+
+                                // Group channels strictly by category according to category order in catEntities.
+                                // Within each category:
+                                // Channels with positive sort_order (1..N) come first in order of their sort_order.
+                                // Channels added later without sort_order (sort_order = 0) are placed AFTER existing channels, sorted by ID ASC.
+                                // E.g., in Category 1: IDs 1..23 are first, and later added IDs 158, 165, 166 come after ID 23!
+                                List<ChannelEntity> rawChanList = new ArrayList<>(uniqueChans.values());
+                                Map<Integer, List<ChannelEntity>> catChannelsMap = new LinkedHashMap<>();
+                                for (ChannelEntity ch : rawChanList) {
+                                    if (!catChannelsMap.containsKey(ch.categoryId)) {
+                                        catChannelsMap.put(ch.categoryId, new ArrayList<>());
+                                    }
+                                    catChannelsMap.get(ch.categoryId).add(ch);
+                                }
+
+                                java.util.Comparator<ChannelEntity> channelApiComparator = (a, b) -> {
+                                    if (a.order > 0 && b.order > 0) {
+                                        if (a.order != b.order) {
+                                            return Integer.compare(a.order, b.order);
+                                        }
+                                        return Integer.compare(a.id, b.id);
+                                    }
+                                    if (a.order > 0 && b.order <= 0) return -1;
+                                    if (b.order > 0 && a.order <= 0) return 1;
+                                    return Integer.compare(a.id, b.id);
+                                };
+
+                                List<ChannelEntity> categorizedChans = new ArrayList<>();
+                                Set<Integer> addedChanIds = new HashSet<>();
+
+                                for (CategoryEntity cat : catEntities) {
+                                    if (com.ottking.devcode.utils.CustomOrderManager.isAllCategory(cat)) {
+                                        continue;
+                                    }
+                                    List<ChannelEntity> catChans = catChannelsMap.get(cat.id);
+                                    if (catChans != null && !catChans.isEmpty()) {
+                                        Collections.sort(catChans, channelApiComparator);
+                                        for (ChannelEntity ch : catChans) {
+                                            if (!addedChanIds.contains(ch.id)) {
+                                                categorizedChans.add(ch);
+                                                addedChanIds.add(ch.id);
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Any orphan channels whose categoryId wasn't in catEntities
+                                List<ChannelEntity> orphanChans = new ArrayList<>();
+                                for (ChannelEntity ch : rawChanList) {
+                                    if (!addedChanIds.contains(ch.id)) {
+                                        orphanChans.add(ch);
+                                        addedChanIds.add(ch.id);
+                                    }
+                                }
+                                Collections.sort(orphanChans, channelApiComparator);
+                                for (ChannelEntity ch : orphanChans) {
+                                    categorizedChans.add(ch);
+                                }
+
+                                // Assign consecutive item_order (0, 1, 2, ...) reflecting this exact sequence
+                                for (int i = 0; i < categorizedChans.size(); i++) {
+                                    categorizedChans.get(i).order = i;
+                                }
+
+                                chanEntities.addAll(categorizedChans);
                             }
                         }
                     }
@@ -240,6 +333,12 @@ public class ApiClient {
                 AppDatabase db = AppDatabase.getInstance(context);
 
                 if (serverSuccess && (!catEntities.isEmpty() || !chanEntities.isEmpty())) {
+                    // Record original server orders so reset will restore server ordering accurately
+                    com.ottking.devcode.utils.CustomOrderManager.getInstance(context).saveServerOriginalOrders(catEntities, chanEntities);
+
+                    // Apply any user custom orders to keep user's preferences across server syncs
+                    com.ottking.devcode.utils.CustomOrderManager.getInstance(context).applyCustomOrdersToEntities(catEntities, chanEntities);
+
                     db.runInTransaction(() -> {
                         if (!catEntities.isEmpty()) {
                             List<CategoryEntity> validCats = new ArrayList<>();
@@ -281,7 +380,8 @@ public class ApiClient {
                                         keyMgr.encryptStreamUrl(ch.streamUrl),
                                         ch.categoryId,
                                         ch.isPremium,
-                                        ch.streamType
+                                        ch.streamType,
+                                        ch.order
                                 ));
                             }
                             db.channelDao().deleteAll();

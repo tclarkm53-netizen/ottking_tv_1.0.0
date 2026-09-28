@@ -81,6 +81,7 @@ import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter;
 import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy;
 import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy;
 import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory;
+import androidx.media3.exoplayer.video.VideoFrameMetadataListener;
 import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.ui.PlayerView;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -126,6 +127,11 @@ public class PlayerActivity extends AppCompatActivity {
     private ImageButton btnPlayerVoiceSearch;
     private boolean isAwaitingVoiceResult = false;
     private List<ChannelEntity> allChannelsList = new ArrayList<>();
+    private final List<com.ottking.devcode.db.CategoryEntity> playerCategories = new ArrayList<>();
+    private final List<ChannelEntity> playerRawChannels = new ArrayList<>();
+    private final com.ottking.devcode.utils.CustomOrderManager.OnOrderChangedListener playerOrderListener = () -> {
+        runOnUiThread(this::rebuildPlayerChannels);
+    };
 
     private final Handler uiOverlayHandler = new Handler(Looper.getMainLooper());
     private static final long DRAWER_AUTO_HIDE_TIMEOUT_MS = 5000L;
@@ -156,13 +162,15 @@ public class PlayerActivity extends AppCompatActivity {
     private final Handler streamAutoPollHandler = new Handler(Looper.getMainLooper());
     private long lastObservedPosition = -1;
     private long lastFrameRenderTimeMs = 0;
+    private long lastVideoFrameRenderTimeMs = 0;
     private long lastBufferedPositionMs = -1;
     private long positionStallStartTime = 0;
     private long continuousBufferStartTime = 0;
     private int consecutiveStallRecoveries = 0;
     private boolean isPlayerResumed = false;
     private static final long AUTO_POLL_INTERVAL_MS = 1000; // Poll every 1.0 second for proactive stream health & buffer monitoring
-    private static final long MAX_ALLOWED_BUFFER_MS = 6500; // 6.5s continuous buffer stall = auto-jump to live edge or refresh stream
+    private static final long MAX_ALLOWED_BUFFER_MS = 3500; // 3.5s continuous buffer stall = auto-recover stream
+    private static final long MAX_ALLOWED_FREEZE_MS = 3000; // 3.0s frozen position with no progress = auto-recover stream
     private long currentLiveTargetOffsetMs = C.TIME_UNSET;
     private long currentLiveMinOffsetMs = C.TIME_UNSET;
     private long currentLiveMaxOffsetMs = C.TIME_UNSET;
@@ -299,6 +307,7 @@ public class PlayerActivity extends AppCompatActivity {
         registerNetworkCallback();
 
         FocusManager.getInstance().setupBackPressHandler(this, SCREEN_KEY, this::handlePlayerBackPressInternal);
+        com.ottking.devcode.utils.CustomOrderManager.getInstance(this).addListener(playerOrderListener);
     }
 
     private void setupFocusGuard() {
@@ -502,6 +511,7 @@ public class PlayerActivity extends AppCompatActivity {
         lastObservedPosition = -1;
         lastBufferedPositionMs = -1;
         lastFrameRenderTimeMs = 0;
+        lastVideoFrameRenderTimeMs = 0;
         positionStallStartTime = 0;
         continuousBufferStartTime = 0;
         consecutiveStallRecoveries = 0;
@@ -960,7 +970,8 @@ public class PlayerActivity extends AppCompatActivity {
             );
 
             DataSource.Factory dsFactory = getDataSourceFactory(playerContext);
-            DefaultMediaSourceFactory mediaSourceFactory = new DefaultMediaSourceFactory(dsFactory);
+            DefaultMediaSourceFactory mediaSourceFactory = new DefaultMediaSourceFactory(dsFactory)
+                    .setLoadErrorHandlingPolicy(new LiveStreamLoadErrorHandlingPolicy());
 
             player = new ExoPlayer.Builder(playerContext)
                     .setMediaSourceFactory(mediaSourceFactory)
@@ -978,19 +989,26 @@ public class PlayerActivity extends AppCompatActivity {
                     .build();
             player.setAudioAttributes(audioAttributes, true);
             player.setSeekParameters(SeekParameters.CLOSEST_SYNC);
+            player.setVideoFrameMetadataListener((presentationTimeUs, releaseTimeNs, format, mediaFormat) -> {
+                long now = System.currentTimeMillis();
+                lastVideoFrameRenderTimeMs = now;
+                lastFrameRenderTimeMs = now;
+            });
             playerView.setPlayer(player);
             playerView.setKeepScreenOn(true);
 
             bufferingWatchdogRunnable = () -> {
                 if (player != null && (player.getPlaybackState() == Player.STATE_BUFFERING || player.getPlaybackState() == Player.STATE_IDLE || player.getPlayerError() != null)) {
-                    retryPlayback("Stream connection stalled, auto reconnecting...");
+                    reconnectStream("Stream connection stalled in buffering, auto reconnecting...");
                 }
             };
 
             player.addListener(new Player.Listener() {
                 @Override
                 public void onRenderedFirstFrame() {
-                    lastFrameRenderTimeMs = System.currentTimeMillis();
+                    long now = System.currentTimeMillis();
+                    lastFrameRenderTimeMs = now;
+                    lastVideoFrameRenderTimeMs = now;
                     positionStallStartTime = 0;
                     continuousBufferStartTime = 0;
                     consecutiveStallRecoveries = 0;
@@ -1000,10 +1018,11 @@ public class PlayerActivity extends AppCompatActivity {
                 @Override
                 public void onIsPlayingChanged(boolean isPlaying) {
                     if (isPlaying) {
-                        lastFrameRenderTimeMs = System.currentTimeMillis();
+                        long now = System.currentTimeMillis();
+                        lastFrameRenderTimeMs = now;
+                        lastVideoFrameRenderTimeMs = now;
                         positionStallStartTime = 0;
                         continuousBufferStartTime = 0;
-                        consecutiveStallRecoveries = 0;
                         dismissBufferingView();
                     }
                 }
@@ -1017,15 +1036,20 @@ public class PlayerActivity extends AppCompatActivity {
                     } else if (playbackState == Player.STATE_READY) {
                         retryCount = 0;
                         continuousBufferStartTime = 0;
+                        positionStallStartTime = 0;
                         dismissBufferingView();
+                        long now = System.currentTimeMillis();
                         if (lastFrameRenderTimeMs == 0) {
-                            lastFrameRenderTimeMs = System.currentTimeMillis();
+                            lastFrameRenderTimeMs = now;
+                        }
+                        if (lastVideoFrameRenderTimeMs == 0) {
+                            lastVideoFrameRenderTimeMs = now;
                         }
                         if (player != null && !player.isPlaying()) {
                             player.play();
                         }
                     } else if (playbackState == Player.STATE_ENDED) {
-                        retryPlayback("Stream disconnected, reconnecting...");
+                        reconnectStream("Stream disconnected, reconnecting...");
                     }
                 }
 
@@ -1033,8 +1057,73 @@ public class PlayerActivity extends AppCompatActivity {
                 public void onPlayerError(PlaybackException error) {
                     bufferingWatchdogHandler.removeCallbacks(bufferingWatchdogRunnable);
                     int httpCode = com.ottking.devcode.utils.PlayerUtils.getHttpErrorCode(error);
-                    if (httpCode == 404 || httpCode == 410) {
-                        Toast.makeText(PlayerActivity.this, "This channel link is currently unavailable (Error " + httpCode + ")", Toast.LENGTH_SHORT).show();
+                    if (httpCode == 404) {
+                        if (retryCount < 5) {
+                            retryCount++;
+                            android.util.Log.w("PlayerActivity", "Stream returned 404, performing automatic recovery # " + retryCount + " / 5...");
+
+                            // 1. Jump to live edge to bypass any stale/missing chunks
+                            try {
+                                if (player != null) {
+                                    player.seekToDefaultPosition();
+                                }
+                            } catch (Exception ignored) {}
+
+                            // 2. Fetch newest stream URL from database in case URL was updated
+                            try {
+                                AppDatabase db = AppDatabase.getInstance(PlayerActivity.this);
+                                ChannelEntity ch = db.channelDao().getChannelByIdSync(currentChannelId);
+                                if (ch != null && ch.streamUrl != null && !ch.streamUrl.trim().isEmpty()) {
+                                    String freshUrl = com.ottking.devcode.security.DatabaseKeyManager.getDecryptedUrl(PlayerActivity.this, ch.streamUrl);
+                                    if (freshUrl != null && !freshUrl.trim().isEmpty()) {
+                                        currentStreamUrl = freshUrl.trim();
+                                    }
+                                }
+                            } catch (Exception ignored) {}
+
+                            // 3. Refresh Edge-Cookie and Stream Token to fix expired edge session
+                            ApiClient.getInstance(PlayerActivity.this).refreshEdgeCookie(currentChannelId, currentStreamUrl, new ApiClient.ApiCallback<String>() {
+                                @Override
+                                public void onSuccess(String newCookie) {
+                                    if (newCookie != null && !newCookie.isEmpty()) {
+                                        staticEdgeCookie = newCookie;
+                                        if (prefs != null) prefs.setEdgeCookie(newCookie);
+                                    }
+                                    ApiClient.getInstance(PlayerActivity.this).fetchStreamToken(currentChannelId, currentStreamUrl, new ApiClient.ApiCallback<StreamTokenAuth>() {
+                                        @Override
+                                        public void onSuccess(StreamTokenAuth tokenAuth) {
+                                            if (tokenAuth != null && tokenAuth.getStreamToken() != null && !tokenAuth.getStreamToken().isEmpty()) {
+                                                currentActiveStreamToken = tokenAuth.getStreamToken();
+                                            }
+                                            retryPlayback("Recovered 404 via refreshed session, reconnecting...");
+                                        }
+
+                                        @Override
+                                        public void onError(String err) {
+                                            retryPlayback("Retrying stream playback after 404...");
+                                        }
+                                    });
+                                }
+
+                                @Override
+                                public void onError(String err) {
+                                    retryPlayback("Retrying stream playback after 404...");
+                                }
+                            });
+                            return;
+                        } else {
+                            android.util.Log.e("PlayerActivity", "Stream 404 persistent after 5 retries, scheduling background retry...");
+                            Toast.makeText(PlayerActivity.this, "Stream connection interrupted (404), reconnecting...", Toast.LENGTH_SHORT).show();
+                            retryCount = 0;
+                            retryHandler.postDelayed(() -> {
+                                if (!isFinishing() && !isDestroyed()) {
+                                    playStream(currentStreamUrl);
+                                }
+                            }, 3000);
+                            return;
+                        }
+                    } else if (httpCode == 410) {
+                        Toast.makeText(PlayerActivity.this, "This channel link has expired (Error 410)", Toast.LENGTH_SHORT).show();
                         return;
                     } else if (httpCode == 401 || httpCode == 403) {
                         if (retryCount < 4) {
@@ -1178,6 +1267,27 @@ public class PlayerActivity extends AppCompatActivity {
 
         @Override
         public long getRetryDelayMsFor(LoadErrorInfo loadErrorInfo) {
+            if (loadErrorInfo.exception instanceof androidx.media3.common.ParserException) {
+                return C.TIME_UNSET;
+            }
+            if (loadErrorInfo.exception instanceof androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException) {
+                int code = ((androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException) loadErrorInfo.exception).responseCode;
+                if (code == 410) {
+                    return C.TIME_UNSET;
+                }
+                if (code == 404) {
+                    if (loadErrorInfo.errorCount <= 8) {
+                        return Math.min(300L * loadErrorInfo.errorCount, 1500L);
+                    }
+                    return C.TIME_UNSET;
+                }
+                if (code == 401 || code == 403) {
+                    if (loadErrorInfo.errorCount <= 5) {
+                        return Math.min(300L * loadErrorInfo.errorCount, 1200L);
+                    }
+                    return C.TIME_UNSET;
+                }
+            }
             // Immediate fast-retry (250ms - 1200ms) prevents live buffer starvation and freeze
             return Math.min(250L * Math.max(1, loadErrorInfo.errorCount), 1200L);
         }
@@ -1220,7 +1330,9 @@ public class PlayerActivity extends AppCompatActivity {
         // Reset auto-polling stall metrics for clean stream start
         lastObservedPosition = -1;
         lastBufferedPositionMs = -1;
-        lastFrameRenderTimeMs = System.currentTimeMillis();
+        long now = System.currentTimeMillis();
+        lastFrameRenderTimeMs = now;
+        lastVideoFrameRenderTimeMs = now;
         positionStallStartTime = 0;
         continuousBufferStartTime = 0;
         consecutiveStallRecoveries = 0;
@@ -1293,6 +1405,57 @@ public class PlayerActivity extends AppCompatActivity {
         });
     }
 
+    private void rebuildPlayerChannels() {
+        if (playerRawChannels.isEmpty() || playerCategories.isEmpty()) {
+            try {
+                AppDatabase db = AppDatabase.getInstance(this);
+                List<com.ottking.devcode.db.CategoryEntity> cats = db.categoryDao().getAllCategoriesSync();
+                List<ChannelEntity> chans = db.channelDao().getAllChannelsSync();
+                if (cats != null && !cats.isEmpty()) {
+                    playerCategories.clear();
+                    playerCategories.addAll(cats);
+                }
+                if (chans != null && !chans.isEmpty()) {
+                    playerRawChannels.clear();
+                    playerRawChannels.addAll(chans);
+                }
+            } catch (Exception ignored) {}
+        }
+        if (playerRawChannels.isEmpty()) return;
+        com.ottking.devcode.utils.CustomOrderManager orderManager = com.ottking.devcode.utils.CustomOrderManager.getInstance(this);
+        List<ChannelEntity> ordered = orderManager.buildOrderedAllChannels(playerRawChannels, playerCategories, false);
+        allChannelsList = new ArrayList<>(ordered);
+        if (channelAdapter != null) {
+            channelAdapter.setAllChannelsList(allChannelsList);
+            if (edtPlayerSearch != null && !edtPlayerSearch.getText().toString().isEmpty()) {
+                filterPlayerChannels(edtPlayerSearch.getText().toString());
+            } else {
+                channelAdapter.setChannels(allChannelsList);
+            }
+        }
+        boolean currentFound = false;
+        for (int i = 0; i < allChannelsList.size(); i++) {
+            if (allChannelsList.get(i).id == currentChannelId) {
+                currentChannelNumber = i + 1;
+                updateChannelInfoUI();
+                currentFound = true;
+                break;
+            }
+        }
+        if (!currentFound && !allChannelsList.isEmpty()) {
+            ChannelEntity fallback = allChannelsList.get(0);
+            currentChannelId = fallback.id;
+            currentChannelNumber = 1;
+            currentStreamUrl = com.ottking.devcode.security.DatabaseKeyManager.getDecryptedUrl(this, fallback.streamUrl);
+            currentChannelName = fallback.name;
+            currentLogoUrl = fallback.logoUrl;
+            currentIsPremium = fallback.isPremium;
+            prefs.setLastPlayedChannelId(currentChannelId);
+            updateChannelInfoUI();
+            playStream(currentStreamUrl);
+        }
+    }
+
     private void setupChannelDrawer() {
         recyclerPlayerChannels.setLayoutManager(new LinearLayoutManager(this));
         channelAdapter = new ChannelAdapter(true, channel -> {
@@ -1319,6 +1482,7 @@ public class PlayerActivity extends AppCompatActivity {
             showCardOverlayTemporarily(4000);
         });
         btnPlayerVoiceSearch = findViewById(R.id.btnPlayerVoiceSearch);
+        ImageButton btnPlayerCustomizeOrder = findViewById(R.id.btnPlayerCustomizeOrder);
         ImageButton btnPlayerSettings = findViewById(R.id.btnPlayerSettings);
         edtPlayerSearch = findViewById(R.id.edtPlayerSearch);
         btnClearPlayerSearch = findViewById(R.id.btnClearPlayerSearch);
@@ -1333,6 +1497,8 @@ public class PlayerActivity extends AppCompatActivity {
                     edtPlayerSearch.requestFocus();
                 } else if (btnPlayerVoiceSearch != null) {
                     btnPlayerVoiceSearch.requestFocus();
+                } else if (btnPlayerCustomizeOrder != null) {
+                    btnPlayerCustomizeOrder.requestFocus();
                 } else if (btnPlayerSettings != null) {
                     btnPlayerSettings.requestFocus();
                 }
@@ -1344,6 +1510,8 @@ public class PlayerActivity extends AppCompatActivity {
                     edtPlayerSearch.requestFocus();
                 } else if (btnPlayerVoiceSearch != null) {
                     btnPlayerVoiceSearch.requestFocus();
+                } else if (btnPlayerCustomizeOrder != null) {
+                    btnPlayerCustomizeOrder.requestFocus();
                 } else if (btnPlayerSettings != null) {
                     btnPlayerSettings.requestFocus();
                 }
@@ -1380,6 +1548,37 @@ public class PlayerActivity extends AppCompatActivity {
             btnPlayerVoiceSearch.setOnKeyListener((v, keyCode, event) -> {
                 if (event.getAction() == KeyEvent.ACTION_DOWN) {
                     if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                        if (btnPlayerCustomizeOrder != null) {
+                            btnPlayerCustomizeOrder.requestFocus();
+                            return true;
+                        } else if (btnPlayerSettings != null) {
+                            btnPlayerSettings.requestFocus();
+                            return true;
+                        }
+                    } else if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                        if (edtPlayerSearch != null) {
+                            edtPlayerSearch.requestFocus();
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            });
+        }
+
+        if (btnPlayerCustomizeOrder != null) {
+            btnPlayerCustomizeOrder.setOnClickListener(v -> openCustomizeOrderActivity());
+            btnPlayerCustomizeOrder.setOnFocusChangeListener((v, hasFocus) -> {
+                UIUtils.animateFocus(v, hasFocus, 1.15f, 10f);
+            });
+            btnPlayerCustomizeOrder.setOnKeyListener((v, keyCode, event) -> {
+                if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                    if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+                        if (btnPlayerVoiceSearch != null) {
+                            btnPlayerVoiceSearch.requestFocus();
+                            return true;
+                        }
+                    } else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
                         if (btnPlayerSettings != null) {
                             btnPlayerSettings.requestFocus();
                             return true;
@@ -1403,7 +1602,10 @@ public class PlayerActivity extends AppCompatActivity {
             btnPlayerSettings.setOnKeyListener((v, keyCode, event) -> {
                 if (event.getAction() == KeyEvent.ACTION_DOWN) {
                     if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
-                        if (btnPlayerVoiceSearch != null) {
+                        if (btnPlayerCustomizeOrder != null) {
+                            btnPlayerCustomizeOrder.requestFocus();
+                            return true;
+                        } else if (btnPlayerVoiceSearch != null) {
                             btnPlayerVoiceSearch.requestFocus();
                             return true;
                         }
@@ -1571,16 +1773,21 @@ public class PlayerActivity extends AppCompatActivity {
             });
         }
 
-        // Observe channels from database for channel list drawer and real-time updates
-        AppDatabase.getInstance(this).channelDao().getAllChannels().observe(this, channels -> {
+        // Observe categories and channels from database for channel list drawer and real-time updates
+        AppDatabase db = AppDatabase.getInstance(this);
+        db.categoryDao().getAllCategories().observe(this, categories -> {
+            playerCategories.clear();
+            if (categories != null) {
+                playerCategories.addAll(categories);
+            }
+            rebuildPlayerChannels();
+        });
+
+        db.channelDao().getAllChannels().observe(this, channels -> {
             if (channels != null && !channels.isEmpty()) {
-                allChannelsList = new ArrayList<>(channels);
-                channelAdapter.setAllChannelsList(channels);
-                if (edtPlayerSearch != null && !edtPlayerSearch.getText().toString().isEmpty()) {
-                    filterPlayerChannels(edtPlayerSearch.getText().toString());
-                } else {
-                    channelAdapter.setChannels(channels);
-                }
+                playerRawChannels.clear();
+                playerRawChannels.addAll(channels);
+                rebuildPlayerChannels();
 
                 if (!initialPlaybackStarted) {
                     // Initial startup (e.g. Boot Player directly launched into PlayerActivity)
@@ -1588,35 +1795,37 @@ public class PlayerActivity extends AppCompatActivity {
                     int lastPlayedId = prefs.getLastPlayedChannelId();
                     ChannelEntity targetChannel = null;
                     if (lastPlayedId != -1) {
-                        for (ChannelEntity c : channels) {
+                        for (ChannelEntity c : allChannelsList) {
                             if (c.id == lastPlayedId) {
                                 targetChannel = c;
                                 break;
                             }
                         }
                     }
-                    if (targetChannel == null) {
-                        targetChannel = channels.get(0);
+                    if (targetChannel == null && !allChannelsList.isEmpty()) {
+                        targetChannel = allChannelsList.get(0);
                     }
 
-                    int pos = channels.indexOf(targetChannel);
-                    currentChannelId = targetChannel.id;
-                    currentChannelNumber = (pos != -1) ? (pos + 1) : 1;
-                    currentStreamUrl = com.ottking.devcode.security.DatabaseKeyManager.getDecryptedUrl(this, targetChannel.streamUrl);
-                    currentChannelName = targetChannel.name;
-                    currentLogoUrl = targetChannel.logoUrl;
-                    currentIsPremium = targetChannel.isPremium;
-                    prefs.setLastPlayedChannelId(currentChannelId);
+                    if (targetChannel != null) {
+                        int pos = allChannelsList.indexOf(targetChannel);
+                        currentChannelId = targetChannel.id;
+                        currentChannelNumber = (pos != -1) ? (pos + 1) : 1;
+                        currentStreamUrl = com.ottking.devcode.security.DatabaseKeyManager.getDecryptedUrl(this, targetChannel.streamUrl);
+                        currentChannelName = targetChannel.name;
+                        currentLogoUrl = targetChannel.logoUrl;
+                        currentIsPremium = targetChannel.isPremium;
+                        prefs.setLastPlayedChannelId(currentChannelId);
 
-                    updateChannelInfoUI();
-                    playStream(currentStreamUrl);
+                        updateChannelInfoUI();
+                        playStream(currentStreamUrl);
+                    }
                 } else {
                     // Real-time server sync update while user is actively watching
                     ChannelEntity targetChannel = null;
                     int targetPos = -1;
-                    for (int i = 0; i < channels.size(); i++) {
-                        if (channels.get(i).id == currentChannelId) {
-                            targetChannel = channels.get(i);
+                    for (int i = 0; i < allChannelsList.size(); i++) {
+                        if (allChannelsList.get(i).id == currentChannelId) {
+                            targetChannel = allChannelsList.get(i);
                             targetPos = i;
                             break;
                         }
@@ -1635,9 +1844,9 @@ public class PlayerActivity extends AppCompatActivity {
                             playStream(currentStreamUrl);
                         }
                         updateChannelInfoUI();
-                    } else {
+                    } else if (!allChannelsList.isEmpty()) {
                         // Current channel was deleted on server; smoothly fallback to channel 1
-                        ChannelEntity fallback = channels.get(0);
+                        ChannelEntity fallback = allChannelsList.get(0);
                         currentChannelId = fallback.id;
                         currentChannelNumber = 1;
                         currentStreamUrl = com.ottking.devcode.security.DatabaseKeyManager.getDecryptedUrl(this, fallback.streamUrl);
@@ -1686,7 +1895,16 @@ public class PlayerActivity extends AppCompatActivity {
             }
             channelAdapter.setChannels(filtered);
         }
-    }    private void showPlayerSettingsDialog() {
+    }
+
+    private void openCustomizeOrderActivity() {
+        hideOverlays();
+        Intent intent = new Intent(PlayerActivity.this, SettingsActivity.class);
+        intent.putExtra("open_section", "Customize");
+        startActivity(intent);
+    }
+
+    private void showPlayerSettingsDialog() {
         LinearLayout mainLayout = new LinearLayout(this);
         mainLayout.setOrientation(LinearLayout.VERTICAL);
         mainLayout.setPadding(10, 10, 10, 10);
@@ -1707,6 +1925,11 @@ public class PlayerActivity extends AppCompatActivity {
         btnTabTv.setFocusable(true);
         btnTabTv.setClickable(true);
 
+        Button btnTabCustomize = new Button(this);
+        btnTabCustomize.setText("Customize Order");
+        btnTabCustomize.setFocusable(true);
+        btnTabCustomize.setClickable(true);
+
         Button btnTabAccounts = new Button(this);
         btnTabAccounts.setText("Account");
         btnTabAccounts.setFocusable(true);
@@ -1718,6 +1941,7 @@ public class PlayerActivity extends AppCompatActivity {
 
         tabsBar.addView(btnTabPlayer, tabParams);
         tabsBar.addView(btnTabTv, tabParams);
+        tabsBar.addView(btnTabCustomize, tabParams);
         tabsBar.addView(btnTabAccounts, tabParams);
 
         // Content Frame
@@ -1730,6 +1954,7 @@ public class PlayerActivity extends AppCompatActivity {
         mainLayout.addView(contentFrame);
 
         final int[] activeTab = {0};
+        final Dialog[] dialogHolder = new Dialog[1];
 
         Runnable loadTabContent = new Runnable() {
             @Override
@@ -1738,12 +1963,15 @@ public class PlayerActivity extends AppCompatActivity {
 
                 styleTabButton(btnTabPlayer, activeTab[0] == 0);
                 styleTabButton(btnTabTv, activeTab[0] == 1);
-                styleTabButton(btnTabAccounts, activeTab[0] == 2);
+                styleTabButton(btnTabCustomize, activeTab[0] == 2);
+                styleTabButton(btnTabAccounts, activeTab[0] == 3);
 
                 if (activeTab[0] == 0) {
                     contentFrame.addView(createPlayerTabContent());
                 } else if (activeTab[0] == 1) {
                     contentFrame.addView(createTvSettingsTabContent());
+                } else if (activeTab[0] == 2) {
+                    contentFrame.addView(createCustomizeOrderTabContent(dialogHolder));
                 } else {
                     contentFrame.addView(createAccountsTabContent(btnTabAccounts));
                 }
@@ -1772,25 +2000,75 @@ public class PlayerActivity extends AppCompatActivity {
             }
         });
 
-        btnTabAccounts.setOnClickListener(v -> {
+        btnTabCustomize.setOnClickListener(v -> {
             activeTab[0] = 2;
             loadTabContent.run();
         });
-        btnTabAccounts.setOnFocusChangeListener((v, hasFocus) -> {
+        btnTabCustomize.setOnFocusChangeListener((v, hasFocus) -> {
             if (hasFocus) {
                 activeTab[0] = 2;
                 loadTabContent.run();
             }
         });
 
+        btnTabAccounts.setOnClickListener(v -> {
+            activeTab[0] = 3;
+            loadTabContent.run();
+        });
+        btnTabAccounts.setOnFocusChangeListener((v, hasFocus) -> {
+            if (hasFocus) {
+                activeTab[0] = 3;
+                loadTabContent.run();
+            }
+        });
+
         loadTabContent.run();
 
-        new CustomDialog.Builder(this)
+        dialogHolder[0] = new CustomDialog.Builder(this)
                 .setTitle(getString(R.string.title_player_settings))
                 .setIcon(R.drawable.ic_settings)
                 .setView(mainLayout)
                 .setWidthPercent(0.95f)
                 .show();
+    }
+
+    private View createCustomizeOrderTabContent(Dialog[] dialogHolder) {
+        ScrollView scrollView = new ScrollView(this);
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(16, 16, 16, 16);
+
+        layout.addView(createSectionHeader("Customize Channels & Categories Order"));
+
+        TextView tvDesc = new TextView(this);
+        tvDesc.setText("Easily reorder channels and categories to match your preference, or hide channels you do not want in your live channel lists. Changes apply immediately to your player.");
+        tvDesc.setTextColor(getColor(R.color.text_secondary));
+        tvDesc.setTextSize(13);
+        tvDesc.setPadding(0, 8, 0, 16);
+        layout.addView(tvDesc);
+
+        Button btnOpenCustomize = new Button(this);
+        btnOpenCustomize.setText("Open Customize Order Screen");
+        btnOpenCustomize.setFocusable(true);
+        btnOpenCustomize.setClickable(true);
+        btnOpenCustomize.setBackgroundResource(R.drawable.selector_pill_focus);
+        btnOpenCustomize.setTextColor(getColorStateList(R.color.selector_pill_text));
+        btnOpenCustomize.setTextSize(14);
+        btnOpenCustomize.setTypeface(null, android.graphics.Typeface.BOLD);
+        btnOpenCustomize.setPadding(24, 14, 24, 14);
+        btnOpenCustomize.setOnClickListener(v -> {
+            if (dialogHolder != null && dialogHolder[0] != null) {
+                try {
+                    dialogHolder[0].dismiss();
+                } catch (Exception ignored) {}
+            }
+            openCustomizeOrderActivity();
+        });
+        UIUtils.applyFocusAnimation(btnOpenCustomize, 1.05f, 6f);
+        layout.addView(btnOpenCustomize);
+
+        scrollView.addView(layout);
+        return scrollView;
     }
 
     private void styleTabButton(Button btn, boolean isActive) {
@@ -2416,6 +2694,7 @@ public class PlayerActivity extends AppCompatActivity {
         });
 
         applySavedPlayerSettings();
+        rebuildPlayerChannels();
         if (player != null && !player.isPlaying()) {
             player.play();
         }
@@ -2472,6 +2751,62 @@ public class PlayerActivity extends AppCompatActivity {
         });
     }
 
+    private void reconnectStream(String reason) {
+        if (isFinishing() || isDestroyed()) return;
+        android.util.Log.w("PlayerActivity", "reconnectStream called: " + reason);
+
+        // Cancel any pending HTTP connections so hung sockets abort immediately
+        if (sharedOkHttpClient != null) {
+            try {
+                sharedOkHttpClient.dispatcher().cancelAll();
+            } catch (Exception ignored) {}
+        }
+
+        if (player == null || currentStreamUrl == null || currentStreamUrl.trim().isEmpty()) {
+            return;
+        }
+
+        // Reset stall tracking metrics so watchdog doesn't immediately re-trigger during connection
+        lastObservedPosition = -1;
+        lastBufferedPositionMs = -1;
+        long now = System.currentTimeMillis();
+        lastFrameRenderTimeMs = now;
+        lastVideoFrameRenderTimeMs = now;
+        positionStallStartTime = 0;
+        continuousBufferStartTime = 0;
+
+        // Ensure stream URL is latest decrypted version
+        currentStreamUrl = com.ottking.devcode.security.DatabaseKeyManager.getDecryptedUrl(this, currentStreamUrl);
+
+        // Refresh token and validated edge cookie
+        try {
+            StreamTokenAuth localToken = ApiClient.getInstance(this).generateLocalStreamToken(currentChannelId, currentStreamUrl);
+            if (localToken != null && localToken.getStreamToken() != null && !localToken.getStreamToken().isEmpty()) {
+                currentActiveStreamToken = localToken.getStreamToken();
+            }
+            staticCurrentChannelId = currentChannelId;
+            staticEdgeCookie = com.ottking.devcode.network.GlobalCookieManager.getInstance(this)
+                    .getValidatedCookie(currentChannelId, currentStreamUrl);
+        } catch (Exception ignored) {}
+
+        try {
+            dismissBufferingView();
+            // Crucial: Stop previous hung stream to release decoders, loaders and codec buffers cleanly
+            player.stop();
+            player.clearMediaItems();
+
+            MediaSource freshSource = buildMediaSource(currentStreamUrl.trim());
+            player.setMediaSource(freshSource, true);
+            player.prepare();
+            player.setPlayWhenReady(true);
+            player.play();
+            dismissBufferingView();
+        } catch (Exception e) {
+            android.util.Log.e("PlayerActivity", "reconnectStream failed, falling back to playStream", e);
+            playStream(currentStreamUrl);
+        }
+    }
+
     private void retryPlayback(String reason) {
         if (isFinishing() || isDestroyed()) return;
         retryHandler.removeCallbacksAndMessages(null);
@@ -2499,9 +2834,9 @@ public class PlayerActivity extends AppCompatActivity {
                         runOnUiThread(() -> {
                             if (player != null) {
                                 int state = player.getPlaybackState();
-                                if (state == Player.STATE_IDLE || state == Player.STATE_BUFFERING || player.getPlayerError() != null || !player.isPlaying()) {
+                                if (state == Player.STATE_IDLE || state == Player.STATE_BUFFERING || player.getPlayerError() != null || !player.isPlaying() || positionStallStartTime > 0) {
                                     retryCount = 0;
-                                    retryPlayback("Network connected, resuming stream...");
+                                    reconnectStream("Network connected, resuming stream...");
                                 }
                             }
                         });
@@ -2558,6 +2893,7 @@ public class PlayerActivity extends AppCompatActivity {
         }
         super.onDestroy();
         isPlayerResumed = false;
+        com.ottking.devcode.utils.CustomOrderManager.getInstance(this).removeListener(playerOrderListener);
         uiOverlayHandler.removeCallbacksAndMessages(null);
         stopStreamAutoPolling();
         DataPollingManager.getInstance(this).stopPolling();
@@ -2620,11 +2956,13 @@ public class PlayerActivity extends AppCompatActivity {
             android.util.Log.w("PlayerWatchdog", "Live stream stopped (State=" + state + "). Auto-recovering stream...");
             positionStallStartTime = 0;
             continuousBufferStartTime = 0;
-            retryPlayback("Stream stopped, auto-recovering...");
+            lastObservedPosition = -1;
+            lastVideoFrameRenderTimeMs = now;
+            reconnectStream("Stream stopped (state=" + state + "), auto-recovering...");
             return;
         }
 
-        // 2. Stream buffering stalled - allow safe natural loading without false double-buffer interruption
+        // 2. Stream buffering stalled (STATE_BUFFERING)
         if (state == Player.STATE_BUFFERING) {
             dismissBufferingView();
             positionStallStartTime = 0;
@@ -2640,29 +2978,16 @@ public class PlayerActivity extends AppCompatActivity {
                     android.util.Log.w("PlayerWatchdog", "Buffering timeout (" + bufferStallDuration + "ms). Executing stream data recovery...");
                     continuousBufferStartTime = 0;
                     consecutiveStallRecoveries++;
-                    if (consecutiveStallRecoveries <= 2) {
-                        try {
-                            if (player.isCurrentMediaItemLive()) {
-                                player.seekToDefaultPosition();
-                            }
-                            player.prepare();
-                            player.setPlayWhenReady(true);
-                            player.play();
-                        } catch (Exception e) {
-                            playStream(currentStreamUrl);
-                        }
-                    } else {
-                        consecutiveStallRecoveries = 0;
-                        retryPlayback("Buffering recovery, refreshing stream...");
-                    }
+                    reconnectStream("Buffering timeout (" + bufferStallDuration + "ms), auto-recovering...");
                     return;
                 }
             }
+            return;
         } else {
             continuousBufferStartTime = 0;
         }
 
-        // 3. Player is in STATE_READY -> verify stream health & permanently dismiss buffering indicators
+        // 3. Player is in STATE_READY -> verify actual playback progress and detect video freeze
         if (state == Player.STATE_READY) {
             if (!player.getPlayWhenReady()) {
                 player.setPlayWhenReady(true);
@@ -2671,29 +2996,52 @@ public class PlayerActivity extends AppCompatActivity {
             // Immediately dismiss any buffering spinner once stream is ready
             dismissBufferingView();
 
-            // When player is actively rendering (isPlaying() is true)
-            if (player.isPlaying()) {
-                continuousBufferStartTime = 0;
+            long currentPos = player.getCurrentPosition();
+
+            // Detect if playback position has genuinely advanced since the last 1s check
+            boolean hasPositionAdvanced = (lastObservedPosition != -1 && Math.abs(currentPos - lastObservedPosition) >= 60);
+
+            // Detect video frame freeze if stream has video track
+            boolean hasVideo = (player.getVideoFormat() != null || (player.getVideoSize() != null && player.getVideoSize().width > 0));
+            boolean videoFrozen = false;
+            if (hasVideo && lastVideoFrameRenderTimeMs > 0) {
+                long timeSinceLastFrame = now - lastVideoFrameRenderTimeMs;
+                if (timeSinceLastFrame >= MAX_ALLOWED_FREEZE_MS) {
+                    videoFrozen = true;
+                }
+            }
+
+            if (hasPositionAdvanced && !videoFrozen) {
+                // Stream is actively and smoothly playing frames!
+                lastObservedPosition = currentPos;
                 positionStallStartTime = 0;
                 lastFrameRenderTimeMs = now;
                 consecutiveStallRecoveries = 0;
-                return;
-            }
+            } else {
+                // Position has NOT advanced OR video frame has frozen
+                if (lastObservedPosition == -1) {
+                    lastObservedPosition = currentPos;
+                }
 
-            // If player is in STATE_READY and playWhenReady is true, BUT isPlaying() is false
-            // (e.g. audio sink block, decoder freeze or paused pipeline)
-            player.play();
-            if (positionStallStartTime == 0) {
-                positionStallStartTime = now;
-            } else if (now - positionStallStartTime >= 3500) {
-                positionStallStartTime = 0;
-                android.util.Log.w("PlayerWatchdog", "Player in STATE_READY but not playing for 3.5s. Auto-refreshing stream...");
-                try {
-                    player.prepare();
-                    player.setPlayWhenReady(true);
+                if (positionStallStartTime == 0) {
+                    positionStallStartTime = now;
+                } else {
+                    long freezeDuration = now - positionStallStartTime;
+                    if (freezeDuration >= MAX_ALLOWED_FREEZE_MS) {
+                        android.util.Log.w("PlayerWatchdog", "Stream playback frozen for " + freezeDuration + "ms (pos=" + currentPos + ", videoFrozen=" + videoFrozen + "). Auto-recovering...");
+                        positionStallStartTime = 0;
+                        lastObservedPosition = -1;
+                        lastVideoFrameRenderTimeMs = now;
+                        consecutiveStallRecoveries++;
+
+                        reconnectStream("Stream playback freeze detected (" + freezeDuration + "ms), auto-recovering...");
+                        return;
+                    }
+                }
+
+                // If player is marked as not playing, ensure play() is invoked
+                if (!player.isPlaying()) {
                     player.play();
-                } catch (Exception e) {
-                    playStream(currentStreamUrl);
                 }
             }
         }
