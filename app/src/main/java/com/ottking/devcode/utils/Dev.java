@@ -4,10 +4,10 @@ public class Dev {
 
     // App Information
     public static final String APP_NAME = "OTT KING";
-    public static final String APP_COMPANY = "OTT KING Networks";
+    public static final String APP_COMPANY = "LTV Digital Networks";
 
     // Contact Information
-    public static final String CONTACT_WEBSITE = "https://ottking.com";
+    public static final String CONTACT_WEBSITE = "https://ottking.top";
     public static final String CONTACT_PHONE = "+880 1315-124700";
     public static final String CONTACT_EMAIL = "ottkingdev@gmail.com";
 
