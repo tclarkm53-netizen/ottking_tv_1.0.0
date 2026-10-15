@@ -14,8 +14,8 @@ android {
     applicationId = "com.ottking.devcode"
     minSdk = 24
     targetSdk = 35
-    versionCode = 1
-    versionName = "1.1"
+    versionCode = 3
+    versionName = "1.2"
 
     // Only bundle needed language resources to shrink resources.arsc
     resourceConfigurations += listOf("en", "bn")
@@ -84,15 +84,6 @@ android {
     jniLibs {
       // Compress native .so libraries to achieve minimal APK download size
       useLegacyPackaging = true
-    }
-    
-  }
-   splits {
-    abi {
-      isEnable = true
-      reset()
-      include("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
-      isUniversalApk = true
     }
   }
 

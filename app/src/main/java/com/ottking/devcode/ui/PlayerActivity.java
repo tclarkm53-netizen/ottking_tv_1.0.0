@@ -1082,8 +1082,8 @@ public class PlayerActivity extends AppCompatActivity {
                                 @Override
                                 public void onSuccess(String newCookie) {
                                     if (newCookie != null && !newCookie.isEmpty()) {
-                                        staticEdgeCookie = newCookie;
-                                        if (prefs != null) prefs.setEdgeCookie(newCookie);
+                                        com.ottking.devcode.network.GlobalCookieManager.getInstance(PlayerActivity.this).updateCookie(newCookie);
+                                        staticEdgeCookie = com.ottking.devcode.network.GlobalCookieManager.getInstance(PlayerActivity.this).getValidatedCookie(currentChannelId, currentStreamUrl);
                                     }
                                     ApiClient.getInstance(PlayerActivity.this).fetchStreamToken(currentChannelId, currentStreamUrl, new ApiClient.ApiCallback<StreamTokenAuth>() {
                                         @Override
@@ -1129,8 +1129,8 @@ public class PlayerActivity extends AppCompatActivity {
                                 @Override
                                 public void onSuccess(String newCookie) {
                                     if (newCookie != null && !newCookie.isEmpty()) {
-                                        staticEdgeCookie = newCookie;
-                                        if (prefs != null) prefs.setEdgeCookie(newCookie);
+                                        com.ottking.devcode.network.GlobalCookieManager.getInstance(PlayerActivity.this).updateCookie(newCookie);
+                                        staticEdgeCookie = com.ottking.devcode.network.GlobalCookieManager.getInstance(PlayerActivity.this).getValidatedCookie(currentChannelId, currentStreamUrl);
                                     }
                                     ApiClient.getInstance(PlayerActivity.this).fetchStreamToken(currentChannelId, currentStreamUrl, new ApiClient.ApiCallback<StreamTokenAuth>() {
                                         @Override
@@ -3053,10 +3053,8 @@ public class PlayerActivity extends AppCompatActivity {
             @Override
             public void onSuccess(String newCookie) {
                 if (newCookie != null && !newCookie.isEmpty()) {
-                    staticEdgeCookie = newCookie;
-                    if (prefs != null) {
-                        prefs.setEdgeCookie(newCookie);
-                    }
+                    com.ottking.devcode.network.GlobalCookieManager.getInstance(PlayerActivity.this).updateCookie(newCookie);
+                    staticEdgeCookie = com.ottking.devcode.network.GlobalCookieManager.getInstance(PlayerActivity.this).getValidatedCookie(currentChannelId, currentStreamUrl);
                     android.util.Log.d("PlayerActivity", "Edge-Cookie auto-refreshed successfully");
                 }
             }

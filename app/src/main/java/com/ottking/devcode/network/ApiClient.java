@@ -134,10 +134,11 @@ public class ApiClient {
                     if (catJsonStr != null) {
                         JSONObject catObj = new JSONObject(catJsonStr);
                         // Capture edge-cookie from categories route
-                        String catEdgeCookie = catObj.optString("edge_cookie", catObj.optString("edge-cookie", catObj.optString("edgeCookie", "")));
-                        if (!catEdgeCookie.isEmpty()) {
+                        String catEdgeCookie = extractCookieFromJson(catObj);
+                        if (catEdgeCookie != null && !catEdgeCookie.isEmpty()) {
                             prefs.setEdgeCookie(catEdgeCookie);
-                            android.util.Log.d("ApiClient", "Captured edge-cookie from categories route: " + catEdgeCookie);
+                            com.ottking.devcode.network.GlobalCookieManager.getInstance(context).updateCookie(catEdgeCookie);
+                            android.util.Log.d("ApiClient", "Captured edge-cookie from categories route: " + (catEdgeCookie.length() > 15 ? catEdgeCookie.substring(0, 15) + "..." : catEdgeCookie));
                         }
 
                         if (catObj.optString("status").equals("success") || catObj.has("categories")) {
@@ -221,10 +222,11 @@ public class ApiClient {
                     if (chanJsonStr != null) {
                         JSONObject chanObj = new JSONObject(chanJsonStr);
                         // Capture edge-cookie from channels route
-                        String chanEdgeCookie = chanObj.optString("edge_cookie", chanObj.optString("edge-cookie", chanObj.optString("edgeCookie", "")));
-                        if (!chanEdgeCookie.isEmpty()) {
+                        String chanEdgeCookie = extractCookieFromJson(chanObj);
+                        if (chanEdgeCookie != null && !chanEdgeCookie.isEmpty()) {
                             prefs.setEdgeCookie(chanEdgeCookie);
-                            android.util.Log.d("ApiClient", "Captured edge-cookie from channels route: " + chanEdgeCookie);
+                            com.ottking.devcode.network.GlobalCookieManager.getInstance(context).updateCookie(chanEdgeCookie);
+                            android.util.Log.d("ApiClient", "Captured edge-cookie from channels route: " + (chanEdgeCookie.length() > 15 ? chanEdgeCookie.substring(0, 15) + "..." : chanEdgeCookie));
                         }
 
                         if (chanObj.optString("status").equals("success") || chanObj.has("channels")) {
@@ -420,10 +422,11 @@ public class ApiClient {
                 String responseStr = executeHttpPost(SecurityUtils.getApiUrl() + "login", body.toString());
                 if (responseStr != null) {
                     JSONObject resObj = new JSONObject(responseStr);
-                    String loginEdgeCookie = resObj.optString("edge_cookie", resObj.optString("edge-cookie", resObj.optString("edgeCookie", "")));
-                    if (!loginEdgeCookie.isEmpty()) {
+                    String loginEdgeCookie = extractCookieFromJson(resObj);
+                    if (loginEdgeCookie != null && !loginEdgeCookie.isEmpty()) {
                         prefs.setEdgeCookie(loginEdgeCookie);
-                        android.util.Log.d("ApiClient", "login: Captured edge-cookie: " + loginEdgeCookie);
+                        com.ottking.devcode.network.GlobalCookieManager.getInstance(context).updateCookie(loginEdgeCookie);
+                        android.util.Log.d("ApiClient", "login: Captured edge-cookie: " + (loginEdgeCookie.length() > 15 ? loginEdgeCookie.substring(0, 15) + "..." : loginEdgeCookie));
                     }
 
                     if (resObj.optString("status").equals("success")) {
@@ -531,16 +534,11 @@ public class ApiClient {
                 if (responseStr != null) {
                     JSONObject resObj = new JSONObject(responseStr);
                     // Capture edge-cookie from check-session response body if present
-                    String edgeCookie = resObj.optString("edge_cookie", resObj.optString("edge-cookie", resObj.optString("edgeCookie", "")));
-                    if (edgeCookie.isEmpty()) {
-                        JSONObject uObj = resObj.optJSONObject("user_info");
-                        if (uObj != null) {
-                            edgeCookie = uObj.optString("edge_cookie", uObj.optString("edge-cookie", uObj.optString("edgeCookie", "")));
-                        }
-                    }
-                    if (!edgeCookie.isEmpty()) {
+                    String edgeCookie = extractCookieFromJson(resObj);
+                    if (edgeCookie != null && !edgeCookie.isEmpty()) {
                         prefs.setEdgeCookie(edgeCookie);
-                        android.util.Log.d("ApiClient", "checkSession: Captured edge-cookie: " + edgeCookie);
+                        com.ottking.devcode.network.GlobalCookieManager.getInstance(context).updateCookie(edgeCookie);
+                        android.util.Log.d("ApiClient", "checkSession: Captured edge-cookie: " + (edgeCookie.length() > 15 ? edgeCookie.substring(0, 15) + "..." : edgeCookie));
                     }
 
                     if ("success".equalsIgnoreCase(resObj.optString("status")) || resObj.optBoolean("valid", false)) {
@@ -781,9 +779,12 @@ public class ApiClient {
                         String authHeader = resObj.optString("authorization_header", "Bearer " + streamToken);
                         String verifiedClient = resObj.optString("app_client", appClient);
 
-                        String resEdgeCookie = resObj.optString("edge_cookie", resObj.optString("edge-cookie", resObj.optString("edgeCookie", prefs.getEdgeCookie())));
-                        if (resEdgeCookie != null && !resEdgeCookie.isEmpty()) {
+                        String resEdgeCookie = extractCookieFromJson(resObj);
+                        if (resEdgeCookie == null || resEdgeCookie.isEmpty()) {
+                            resEdgeCookie = prefs.getEdgeCookie();
+                        } else {
                             prefs.setEdgeCookie(resEdgeCookie);
+                            com.ottking.devcode.network.GlobalCookieManager.getInstance(context).updateCookie(resEdgeCookie);
                         }
 
                         StreamTokenAuth tokenAuth = new StreamTokenAuth(
@@ -817,51 +818,144 @@ public class ApiClient {
     }
 
     /**
-     * Mode 1 (App Launch / Startup):
-     * সুধু মাত্র অ্যাপ চালু হওয়ার সময় যে কুকি টা সার্ভার দিবে সেটা আস্তে কোনো পে-লোড লাগবে না।
-     * Fetches the initial bootstrap edge-cookie on app startup without sending any payload.
+     * Inspects a JSON object for valid edge cookie.
+     * Strictly checks legitimate cookie keys and ignores generic keys/tokens (like 'key', 'token', 'auth_token').
+     * Validates that the candidate is not an error string or dummy value before returning.
+     */
+    public static String extractCookieFromJson(JSONObject obj) {
+        if (obj == null) return null;
+
+        // Specific cookie keys ONLY - never include generic "key", "token", "auth_token", etc.
+        String[] directKeys = new String[]{
+                "edge_cookie", "edge-cookie", "edgeCookie", "Edge-Cookie", "Edge_Cookie",
+                "new_cookie", "new-cookie", "newCookie",
+                "stream_cookie", "stream-cookie", "streamCookie",
+                "edge_session_cookie", "edge_token",
+                "cookie_value", "cookie"
+        };
+
+        for (String k : directKeys) {
+            if (obj.has(k)) {
+                Object val = obj.opt(k);
+                if (val instanceof String) {
+                    String strVal = (String) val;
+                    String sanitized = com.ottking.devcode.network.GlobalCookieManager.sanitizeCookie(strVal);
+                    if (com.ottking.devcode.network.GlobalCookieManager.isValidCookieStatic(sanitized)) {
+                        return sanitized;
+                    }
+                }
+            }
+        }
+
+        // Priority nested container: cookie_json
+        if (obj.has("cookie_json")) {
+            Object cj = obj.opt("cookie_json");
+            if (cj instanceof JSONObject) {
+                String extracted = extractCookieFromJson((JSONObject) cj);
+                if (extracted != null && !extracted.isEmpty()) {
+                    return extracted;
+                }
+            }
+        }
+
+        // Check other nested objects (data, response, result, auth) for actual cookie keys ONLY
+        String[] nestedKeys = new String[]{"data", "response", "result", "auth"};
+        for (String nk : nestedKeys) {
+            if (obj.has(nk)) {
+                Object nestedVal = obj.opt(nk);
+                if (nestedVal instanceof JSONObject) {
+                    JSONObject nestedObj = (JSONObject) nestedVal;
+                    for (String k : directKeys) {
+                        if (nestedObj.has(k)) {
+                            Object val = nestedObj.opt(k);
+                            if (val instanceof String) {
+                                String strVal = (String) val;
+                                String sanitized = com.ottking.devcode.network.GlobalCookieManager.sanitizeCookie(strVal);
+                                if (com.ottking.devcode.network.GlobalCookieManager.isValidCookieStatic(sanitized)) {
+                                    return sanitized;
+                                }
+                            }
+                        }
+                    }
+                    if (nestedObj.has("cookie_json")) {
+                        Object subCj = nestedObj.opt("cookie_json");
+                        if (subCj instanceof JSONObject) {
+                            String extracted = extractCookieFromJson((JSONObject) subCj);
+                            if (extracted != null && !extracted.isEmpty()) {
+                                return extracted;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Mode 1 (App Launch / Startup / Bootstrap Recovery):
+     * Fetches the initial bootstrap edge-cookie from /cookie route without sending any stale cookie headers.
      */
     public void fetchInitialAppCookie(ApiCallback<String> callback) {
         executor.execute(() -> {
             try {
                 String cookieEndpoint = SecurityUtils.getApiUrl() + "cookie";
-                // Simple GET request with NO query parameters and NO payload body
-                String responseStr = executeHttpGet(cookieEndpoint);
+                // Simple GET request with NO stale cookie headers (sendCookieHeaders = false)
+                String responseStr = executeHttpGet(cookieEndpoint, false);
 
-                AppPreferences prefs = AppPreferences.getInstance(context);
-                String capturedCookie = (prefs != null) ? prefs.getEdgeCookie() : "";
-
+                String freshCookie = null;
                 if (responseStr != null && !responseStr.isEmpty()) {
-                    JSONObject resObj = new JSONObject(responseStr);
-                    String cookieInRes = resObj.optString("cookie",
-                            resObj.optString("new_cookie",
-                            resObj.optString("edge_cookie",
-                            resObj.optString("edge-cookie",
-                            resObj.optString("token", "")))));
-
-                    if (cookieInRes.isEmpty() && resObj.has("cookie_json") && resObj.get("cookie_json") instanceof JSONObject) {
-                        JSONObject cJson = resObj.getJSONObject("cookie_json");
-                        cookieInRes = cJson.optString("edge_cookie", cJson.optString("cookie", ""));
-                    }
-
-                    if (!cookieInRes.isEmpty()) {
-                        capturedCookie = cookieInRes;
-                        if (prefs != null) {
-                            prefs.setEdgeCookie(cookieInRes);
+                    String trimmed = responseStr.trim();
+                    try {
+                        JSONObject resObj = new JSONObject(trimmed);
+                        freshCookie = extractCookieFromJson(resObj);
+                    } catch (Exception notJson) {
+                        String sanitized = com.ottking.devcode.network.GlobalCookieManager.sanitizeCookie(trimmed);
+                        if (com.ottking.devcode.network.GlobalCookieManager.isValidCookieStatic(sanitized)) {
+                            freshCookie = sanitized;
                         }
-                        android.util.Log.d("ApiClient", "Initial app-launch cookie received (no payload): " + cookieInRes);
                     }
                 }
 
-                final String resultCookie = (capturedCookie != null) ? capturedCookie : "";
-                if (callback != null) {
-                    mainHandler.post(() -> callback.onSuccess(resultCookie));
+                if (freshCookie != null && !freshCookie.isEmpty()) {
+                    com.ottking.devcode.network.GlobalCookieManager.getInstance(context).updateCookie(freshCookie);
+                    android.util.Log.d("ApiClient", "Initial app-launch cookie successfully received and validated: " + (freshCookie.length() > 15 ? freshCookie.substring(0, 15) + "..." : freshCookie));
+                    final String finalRes = freshCookie;
+                    if (callback != null) {
+                        mainHandler.post(() -> callback.onSuccess(finalRes));
+                    }
+                    return;
+                }
+
+                // If not extracted from response body, check if valid cookie exists in preferences/manager
+                AppPreferences prefs = AppPreferences.getInstance(context);
+                String current = (prefs != null) ? prefs.getEdgeCookie() : "";
+                if (com.ottking.devcode.network.GlobalCookieManager.isValidCookieStatic(current)) {
+                    if (callback != null) {
+                        mainHandler.post(() -> callback.onSuccess(current));
+                    }
+                } else {
+                    // Generate local verified device-bound fallback cookie with cryptographic signature
+                    String localFallback = com.ottking.devcode.network.GlobalCookieManager.getInstance(context).generateLocalVerifiedCookie(1, "");
+                    com.ottking.devcode.network.GlobalCookieManager.getInstance(context).updateCookie(localFallback);
+                    if (callback != null) {
+                        mainHandler.post(() -> callback.onSuccess(localFallback));
+                    }
                 }
             } catch (Exception e) {
                 AppPreferences prefs = AppPreferences.getInstance(context);
                 String cached = (prefs != null) ? prefs.getEdgeCookie() : "";
-                if (callback != null) {
-                    mainHandler.post(() -> callback.onSuccess(cached));
+                if (com.ottking.devcode.network.GlobalCookieManager.isValidCookieStatic(cached)) {
+                    if (callback != null) {
+                        mainHandler.post(() -> callback.onSuccess(cached));
+                    }
+                } else {
+                    String localFallback = com.ottking.devcode.network.GlobalCookieManager.getInstance(context).generateLocalVerifiedCookie(1, "");
+                    com.ottking.devcode.network.GlobalCookieManager.getInstance(context).updateCookie(localFallback);
+                    if (callback != null) {
+                        mainHandler.post(() -> callback.onSuccess(localFallback));
+                    }
                 }
             }
         });
@@ -869,24 +963,35 @@ public class ApiClient {
 
     /**
      * Mode 2 (Runtime Playback & Renewal):
-     * রান টাইমে সেই লাষ্ট কুকি সার্ভার এ পেলোডে পাঠালে যাচাই করে নিউ কুকি ইস্যু করে দেবে।
      * Sends the last saved cookie in the payload (JSON and headers).
      * The server verifies the last cookie and issues a brand new cookie.
+     * If the last cookie is invalid or rejected by the server, automatically recovers via Mode 1 bootstrap.
      */
     public void fetchRuntimeNewCookie(int channelId, String streamUrl, ApiCallback<String> callback) {
         executor.execute(() -> {
             try {
                 AppPreferences prefs = AppPreferences.getInstance(context);
-                String sessionToken = prefs.getSessionToken();
-                String deviceId = prefs.getDeviceId();
-                String username = prefs.getUsername().isEmpty() ? "GuestUser" : prefs.getUsername();
+                String lastCookie = (prefs != null) ? prefs.getEdgeCookie() : "";
+                if (!com.ottking.devcode.network.GlobalCookieManager.isValidCookieStatic(lastCookie)) {
+                    lastCookie = "";
+                }
+
+                // If no valid last cookie exists, we cannot verify last_cookie with Mode 2;
+                // immediately fall back to Mode 1 (fetchInitialAppCookie) to obtain a fresh valid cookie!
+                if (lastCookie.isEmpty()) {
+                    fetchInitialAppCookie(callback);
+                    return;
+                }
+
+                String sessionToken = (prefs != null) ? prefs.getSessionToken() : "";
+                String deviceId = (prefs != null) ? prefs.getDeviceId() : "";
+                String username = (prefs != null && !prefs.getUsername().isEmpty()) ? prefs.getUsername() : "GuestUser";
                 String appClient = SecurityUtils.getXAppClientToken();
                 String versionName = getAppVersionName(context);
                 int versionCode = getAppVersionCode(context);
-                String lastCookie = prefs.getEdgeCookie();
 
                 JSONObject body = new JSONObject();
-                body.put("session_token", sessionToken);
+                body.put("session_token", sessionToken != null ? sessionToken : "");
                 body.put("device_id", deviceId);
                 body.put("username", username);
                 body.put("channel_id", channelId);
@@ -898,20 +1003,18 @@ public class ApiClient {
                 body.put("timestamp", System.currentTimeMillis() / 1000);
 
                 // Pass the LAST cookie in JSON payload so server can verify it
-                if (lastCookie != null && !lastCookie.isEmpty()) {
-                    body.put("last_cookie", lastCookie);
-                    body.put("edge_cookie", lastCookie);
-                    body.put("cookie", lastCookie);
+                body.put("last_cookie", lastCookie);
+                body.put("edge_cookie", lastCookie);
+                body.put("cookie", lastCookie);
 
-                    JSONObject cookieJsonObj = new JSONObject();
-                    cookieJsonObj.put("last_cookie", lastCookie);
-                    cookieJsonObj.put("edge_cookie", lastCookie);
-                    cookieJsonObj.put("cookie", lastCookie);
-                    cookieJsonObj.put("channel_id", channelId);
-                    cookieJsonObj.put("device_id", deviceId);
-                    cookieJsonObj.put("timestamp", System.currentTimeMillis());
-                    body.put("cookie_json", cookieJsonObj);
-                }
+                JSONObject cookieJsonObj = new JSONObject();
+                cookieJsonObj.put("last_cookie", lastCookie);
+                cookieJsonObj.put("edge_cookie", lastCookie);
+                cookieJsonObj.put("cookie", lastCookie);
+                cookieJsonObj.put("channel_id", channelId);
+                cookieJsonObj.put("device_id", deviceId);
+                cookieJsonObj.put("timestamp", System.currentTimeMillis());
+                body.put("cookie_json", cookieJsonObj);
 
                 // 1. Primary: Dedicated realtime "cookie" route (POST)
                 String cookieEndpoint = SecurityUtils.getApiUrl() + "cookie";
@@ -923,60 +1026,51 @@ public class ApiClient {
                         String getCookieUrl = cookieEndpoint + "?channel_id=" + channelId
                                 + "&device_id=" + java.net.URLEncoder.encode(deviceId, "UTF-8")
                                 + "&session_token=" + java.net.URLEncoder.encode(sessionToken != null ? sessionToken : "", "UTF-8")
-                                + "&app_version=" + java.net.URLEncoder.encode(versionName, "UTF-8");
-                        if (lastCookie != null && !lastCookie.isEmpty()) {
-                            getCookieUrl += "&last_cookie=" + java.net.URLEncoder.encode(lastCookie, "UTF-8");
-                            getCookieUrl += "&edge_cookie=" + java.net.URLEncoder.encode(lastCookie, "UTF-8");
-                        }
+                                + "&app_version=" + java.net.URLEncoder.encode(versionName, "UTF-8")
+                                + "&last_cookie=" + java.net.URLEncoder.encode(lastCookie, "UTF-8")
+                                + "&edge_cookie=" + java.net.URLEncoder.encode(lastCookie, "UTF-8");
                         responseStr = executeHttpGet(getCookieUrl);
                     } catch (Exception ignored) {}
                 }
 
-                // 3. Fallback to stream-token route if /cookie route is not yet active on server
+                // 3. Fallback to stream-token route if /cookie route did not respond
                 if (responseStr == null) {
                     String fallbackEndpoint = SecurityUtils.getApiUrl() + "stream-token";
                     responseStr = executeHttpPost(fallbackEndpoint, body.toString());
                 }
 
-                String capturedCookie = prefs.getEdgeCookie();
-                if (responseStr != null) {
-                    JSONObject resObj = new JSONObject(responseStr);
-                    // Extract new issued cookie from server
-                    String newCookie = resObj.optString("new_cookie",
-                            resObj.optString("cookie",
-                            resObj.optString("edge_cookie",
-                            resObj.optString("edge-cookie",
-                            resObj.optString("edgeCookie",
-                            resObj.optString("token",
-                            resObj.optString("data", "")))))));
-
-                    if (newCookie.isEmpty() && resObj.has("cookie_json") && resObj.get("cookie_json") instanceof JSONObject) {
-                        JSONObject cJson = resObj.getJSONObject("cookie_json");
-                        newCookie = cJson.optString("new_cookie", cJson.optString("edge_cookie", cJson.optString("cookie", "")));
-                    }
-
-                    if (newCookie.isEmpty() && resObj.has("data") && resObj.get("data") instanceof JSONObject) {
-                        JSONObject dataObj = resObj.getJSONObject("data");
-                        newCookie = dataObj.optString("cookie", dataObj.optString("edge_cookie", dataObj.optString("edge-cookie", "")));
-                    }
-
-                    if (!newCookie.isEmpty()) {
-                        capturedCookie = newCookie;
-                        prefs.setEdgeCookie(newCookie);
-                        android.util.Log.d("ApiClient", "Verified last cookie. New runtime cookie issued: " + newCookie);
+                String freshCookie = null;
+                if (responseStr != null && !responseStr.isEmpty()) {
+                    String trimmed = responseStr.trim();
+                    try {
+                        JSONObject resObj = new JSONObject(trimmed);
+                        freshCookie = extractCookieFromJson(resObj);
+                    } catch (Exception notJson) {
+                        String sanitized = com.ottking.devcode.network.GlobalCookieManager.sanitizeCookie(trimmed);
+                        if (com.ottking.devcode.network.GlobalCookieManager.isValidCookieStatic(sanitized)) {
+                            freshCookie = sanitized;
+                        }
                     }
                 }
 
-                final String finalCookie = (capturedCookie != null) ? capturedCookie : "";
-                if (callback != null) {
-                    mainHandler.post(() -> callback.onSuccess(finalCookie));
+                if (freshCookie != null && !freshCookie.isEmpty()) {
+                    if (prefs != null) {
+                        prefs.setEdgeCookie(freshCookie);
+                    }
+                    com.ottking.devcode.network.GlobalCookieManager.getInstance(context).updateCookie(freshCookie);
+                    android.util.Log.d("ApiClient", "Verified last cookie. New runtime cookie issued: " + (freshCookie.length() > 15 ? freshCookie.substring(0, 15) + "..." : freshCookie));
+                    final String finalRes = freshCookie;
+                    if (callback != null) {
+                        mainHandler.post(() -> callback.onSuccess(finalRes));
+                    }
+                } else {
+                    // If server could not verify last cookie (e.g. expired or wrong key), recover via fetchInitialAppCookie
+                    android.util.Log.w("ApiClient", "Server did not issue new cookie from last_cookie, falling back to initial cookie bootstrap");
+                    fetchInitialAppCookie(callback);
                 }
             } catch (Exception e) {
-                AppPreferences prefs = AppPreferences.getInstance(context);
-                String cachedCookie = (prefs != null) ? prefs.getEdgeCookie() : "";
-                if (callback != null) {
-                    mainHandler.post(() -> callback.onSuccess(cachedCookie));
-                }
+                // If any error, attempt recovery via fetchInitialAppCookie
+                fetchInitialAppCookie(callback);
             }
         });
     }
@@ -1027,13 +1121,7 @@ public class ApiClient {
                     String responseStr = executeHttpPost(SecurityUtils.getApiUrl() + "check-session", body.toString());
                     if (responseStr != null && !responseStr.isEmpty()) {
                         JSONObject resObj = new JSONObject(responseStr);
-                        newCookie = resObj.optString("edge_cookie", resObj.optString("edge-cookie", resObj.optString("edgeCookie", "")));
-                        if (newCookie.isEmpty()) {
-                            JSONObject uObj = resObj.optJSONObject("user_info");
-                            if (uObj != null) {
-                                newCookie = uObj.optString("edge_cookie", uObj.optString("edge-cookie", uObj.optString("edgeCookie", "")));
-                            }
-                        }
+                        newCookie = extractCookieFromJson(resObj);
                     }
                 } catch (Exception checkEx) {
                     android.util.Log.w("ApiClient", "check-session cookie refresh: " + checkEx.getMessage());
@@ -1057,16 +1145,16 @@ public class ApiClient {
                         String chanRes = executeHttpGet(chanUrl);
                         if (chanRes != null && !chanRes.isEmpty()) {
                             JSONObject chanObj = new JSONObject(chanRes);
-                            newCookie = chanObj.optString("edge_cookie", chanObj.optString("edge-cookie", chanObj.optString("edgeCookie", "")));
+                            newCookie = extractCookieFromJson(chanObj);
                         }
                     } catch (Exception chanEx) {
                         android.util.Log.w("ApiClient", "channels cookie refresh: " + chanEx.getMessage());
                     }
                 }
 
-                // Priority 3: Fallback to getCookieRoute if needed
-                if ((newCookie == null || newCookie.isEmpty()) && (channelId > 0 || (streamUrl != null && !streamUrl.isEmpty()))) {
-                    getCookieRoute(channelId, streamUrl, callback);
+                // Priority 3: Fallback to dedicated cookie route
+                if (newCookie == null || newCookie.isEmpty()) {
+                    fetchRuntimeNewCookie(channelId, streamUrl, callback);
                     return;
                 }
 
@@ -1074,34 +1162,23 @@ public class ApiClient {
                     if (prefs != null) {
                         prefs.setEdgeCookie(newCookie);
                     }
+                    com.ottking.devcode.network.GlobalCookieManager.getInstance(context).updateCookie(newCookie);
                     final String finalCookie = newCookie;
                     if (callback != null) {
                         mainHandler.post(() -> callback.onSuccess(finalCookie));
                     }
                 } else {
                     String current = (prefs != null) ? prefs.getEdgeCookie() : "";
-                    if (current != null && !current.isEmpty()) {
+                    if (com.ottking.devcode.network.GlobalCookieManager.isValidCookieStatic(current)) {
                         if (callback != null) {
                             mainHandler.post(() -> callback.onSuccess(current));
                         }
                     } else {
-                        if (callback != null) {
-                            mainHandler.post(() -> callback.onError("Failed to refresh edge-cookie from session/channels"));
-                        }
+                        fetchInitialAppCookie(callback);
                     }
                 }
             } catch (Exception e) {
-                AppPreferences prefs = AppPreferences.getInstance(context);
-                String current = (prefs != null) ? prefs.getEdgeCookie() : "";
-                if (current != null && !current.isEmpty()) {
-                    if (callback != null) {
-                        mainHandler.post(() -> callback.onSuccess(current));
-                    }
-                } else {
-                    if (callback != null) {
-                        mainHandler.post(() -> callback.onError(e.getMessage()));
-                    }
-                }
+                fetchRuntimeNewCookie(channelId, streamUrl, callback);
             }
         });
     }
@@ -1151,8 +1228,11 @@ public class ApiClient {
                             || key.equalsIgnoreCase("edge_cookie"))) {
                         java.util.List<String> values = entry.getValue();
                         if (values != null && !values.isEmpty() && values.get(0) != null && !values.get(0).trim().isEmpty()) {
-                            captured = values.get(0).trim();
-                            break;
+                            String sanitized = com.ottking.devcode.network.GlobalCookieManager.sanitizeCookie(values.get(0).trim());
+                            if (com.ottking.devcode.network.GlobalCookieManager.isValidCookieStatic(sanitized)) {
+                                captured = sanitized;
+                                break;
+                            }
                         }
                     }
                 }
@@ -1167,17 +1247,20 @@ public class ApiClient {
                                 for (String cookie : cookies) {
                                     if (cookie == null) continue;
                                     String lower = cookie.toLowerCase(Locale.US);
-                                    if (lower.contains("edge_cookie=")) {
-                                        int start = lower.indexOf("edge_cookie=") + "edge_cookie=".length();
-                                        int end = cookie.indexOf(';', start);
-                                        captured = (end != -1) ? cookie.substring(start, end).trim() : cookie.substring(start).trim();
-                                        break;
-                                    } else if (lower.contains("edge-cookie=")) {
-                                        int start = lower.indexOf("edge-cookie=") + "edge-cookie=".length();
-                                        int end = cookie.indexOf(';', start);
-                                        captured = (end != -1) ? cookie.substring(start, end).trim() : cookie.substring(start).trim();
-                                        break;
+                                    String[] targets = new String[]{"edge_cookie=", "edge-cookie=", "edgecookie=", "stream_cookie=", "cookie="};
+                                    for (String target : targets) {
+                                        if (lower.contains(target)) {
+                                            int start = lower.indexOf(target) + target.length();
+                                            int end = cookie.indexOf(';', start);
+                                            String val = (end != -1) ? cookie.substring(start, end).trim() : cookie.substring(start).trim();
+                                            String sanitized = com.ottking.devcode.network.GlobalCookieManager.sanitizeCookie(val);
+                                            if (com.ottking.devcode.network.GlobalCookieManager.isValidCookieStatic(sanitized)) {
+                                                captured = sanitized;
+                                                break;
+                                            }
+                                        }
                                     }
+                                    if (captured != null) break;
                                 }
                             }
                         }
@@ -1190,8 +1273,9 @@ public class ApiClient {
                 AppPreferences prefs = AppPreferences.getInstance(context);
                 if (prefs != null) {
                     prefs.setEdgeCookie(captured);
-                    android.util.Log.d("ApiClient", "Captured backend Edge-Cookie header: " );
+                    android.util.Log.d("ApiClient", "Captured valid backend Edge-Cookie header: " + (captured.length() > 15 ? captured.substring(0, 15) + "..." : captured));
                 }
+                com.ottking.devcode.network.GlobalCookieManager.getInstance(context).updateCookie(captured);
             }
         } catch (Exception e) {
             android.util.Log.w("ApiClient", "Error capturing edge-cookie header", e);
@@ -1199,6 +1283,10 @@ public class ApiClient {
     }
 
     private String executeHttpGet(String urlStr) throws Exception {
+        return executeHttpGet(urlStr, true);
+    }
+
+    private String executeHttpGet(String urlStr, boolean sendCookieHeaders) throws Exception {
         URL url = new URL(urlStr);
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setRequestMethod("GET");
@@ -1238,19 +1326,21 @@ public class ApiClient {
                 conn.setRequestProperty("device_id", devId);
                 conn.setRequestProperty("Device-Id", devId);
             }
-            String edgeCookie = prefs.getEdgeCookie();
-            if (edgeCookie != null && !edgeCookie.isEmpty()) {
-                conn.setRequestProperty("Edge-Cookie", edgeCookie);
-                conn.setRequestProperty("edge-cookie", edgeCookie);
-                conn.setRequestProperty("X-Edge-Cookie", edgeCookie);
-                conn.setRequestProperty("Cookie", "edge_cookie=" + edgeCookie + "; edge-cookie=" + edgeCookie);
-                try {
-                    JSONObject cJson = new JSONObject();
-                    cJson.put("edge_cookie", edgeCookie);
-                    cJson.put("cookie", edgeCookie);
-                    conn.setRequestProperty("X-Cookie-Json", cJson.toString());
-                    conn.setRequestProperty("X-Edge-Cookie-Json", cJson.toString());
-                } catch (Exception ignored) {}
+            if (sendCookieHeaders) {
+                String edgeCookie = prefs.getEdgeCookie();
+                if (com.ottking.devcode.network.GlobalCookieManager.isValidCookieStatic(edgeCookie)) {
+                    conn.setRequestProperty("Edge-Cookie", edgeCookie);
+                    conn.setRequestProperty("edge-cookie", edgeCookie);
+                    conn.setRequestProperty("X-Edge-Cookie", edgeCookie);
+                    conn.setRequestProperty("Cookie", "edge_cookie=" + edgeCookie + "; edge-cookie=" + edgeCookie);
+                    try {
+                        JSONObject cJson = new JSONObject();
+                        cJson.put("edge_cookie", edgeCookie);
+                        cJson.put("cookie", edgeCookie);
+                        conn.setRequestProperty("X-Cookie-Json", cJson.toString());
+                        conn.setRequestProperty("X-Edge-Cookie-Json", cJson.toString());
+                    } catch (Exception ignored) {}
+                }
             }
         }
 
@@ -1393,13 +1483,10 @@ public class ApiClient {
                     // Extract edge_cookie from decrypted payload if returned
                     try {
                         JSONObject decObj = new JSONObject(decrypted);
-                        String edgeCookie = decObj.optString("edge_cookie", decObj.optString("edge-cookie", decObj.optString("edgeCookie", decObj.optString("Edge-Cookie", ""))));
-                        if (!edgeCookie.isEmpty()) {
-                            AppPreferences prefs = AppPreferences.getInstance(context);
-                            if (prefs != null) {
-                                prefs.setEdgeCookie(edgeCookie);
-                                android.util.Log.d("ApiClient", "Extracted edge_cookie from decrypted response: " + edgeCookie);
-                            }
+                        String edgeCookie = extractCookieFromJson(decObj);
+                        if (edgeCookie != null && !edgeCookie.isEmpty()) {
+                            com.ottking.devcode.network.GlobalCookieManager.getInstance(context).updateCookie(edgeCookie);
+                            android.util.Log.d("ApiClient", "Extracted edge_cookie from decrypted response: " + edgeCookie);
                         }
                     } catch (Exception ignored) {}
 
@@ -1411,13 +1498,10 @@ public class ApiClient {
             } else {
                 // Response is plaintext JSON - check for edge_cookie
                 try {
-                    String edgeCookie = json.optString("edge_cookie", json.optString("edge-cookie", json.optString("edgeCookie", json.optString("Edge-Cookie", ""))));
-                    if (!edgeCookie.isEmpty()) {
-                        AppPreferences prefs = AppPreferences.getInstance(context);
-                        if (prefs != null) {
-                            prefs.setEdgeCookie(edgeCookie);
-                            android.util.Log.d("ApiClient", "Extracted edge_cookie from plaintext response: " + edgeCookie);
-                        }
+                    String edgeCookie = extractCookieFromJson(json);
+                    if (edgeCookie != null && !edgeCookie.isEmpty()) {
+                        com.ottking.devcode.network.GlobalCookieManager.getInstance(context).updateCookie(edgeCookie);
+                        android.util.Log.d("ApiClient", "Extracted edge_cookie from plaintext response: " + edgeCookie);
                     }
                 } catch (Exception ignored) {}
 

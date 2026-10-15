@@ -171,9 +171,8 @@ public class SplashActivity extends AppCompatActivity {
             boolean isBootPlayer = prefs != null && prefs.isBootPlayerEnabled();
             if (isBootPlayer) {
                 Intent intent = new Intent(SplashActivity.this, PlayerActivity.class);
-                if (prefs != null) {
-                    intent.putExtra("edge_cookie", prefs.getEdgeCookie());
-                }
+                String edgeCookie = com.ottking.devcode.network.GlobalCookieManager.getInstance(SplashActivity.this).getValidatedCookie(1, "");
+                intent.putExtra("edge_cookie", edgeCookie);
                 startActivity(intent);
             } else {
                 Intent intent = new Intent(SplashActivity.this, MainActivity.class);

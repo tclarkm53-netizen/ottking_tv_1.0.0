@@ -153,12 +153,24 @@ public class AppPreferences {
     }
 
     public String getEdgeCookie() {
-        return secureStorage.getSecureString(KEY_EDGE_COOKIE, "");
+        String val = secureStorage.getSecureString(KEY_EDGE_COOKIE, "");
+        if (val == null || val.trim().isEmpty() || !com.ottking.devcode.network.GlobalCookieManager.isValidCookieStatic(val)) {
+            String fallback = prefs.getString("backup_edge_cookie", "");
+            if (com.ottking.devcode.network.GlobalCookieManager.isValidCookieStatic(fallback)) {
+                return fallback.trim();
+            }
+            return "";
+        }
+        return val.trim();
     }
 
     public void setEdgeCookie(String cookie) {
         if (cookie != null) {
-            secureStorage.putSecureString(KEY_EDGE_COOKIE, cookie.trim());
+            String clean = com.ottking.devcode.network.GlobalCookieManager.sanitizeCookie(cookie);
+            if (com.ottking.devcode.network.GlobalCookieManager.isValidCookieStatic(clean)) {
+                secureStorage.putSecureString(KEY_EDGE_COOKIE, clean);
+                prefs.edit().putString("backup_edge_cookie", clean).apply();
+            }
         }
     }
 
