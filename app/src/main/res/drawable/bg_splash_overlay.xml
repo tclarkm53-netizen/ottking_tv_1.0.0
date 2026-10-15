@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="360dp"
+    android:height="640dp"
+    android:viewportWidth="360"
+    android:viewportHeight="640">
+
+    <!-- Note: Canvas base background removed for full transparency -->
+
+    <!-- Top-Right Glowing Accent Shape (10% Opacity) -->
+    <path
+        android:pathData="M180,0 C279.41,0 360,80.59 360,180 L360,0 Z"
+        android:fillColor="#1A6200EE" />
+
+    <!-- Bottom Wave Layer 1 (10% White Opacity) -->
+    <path
+        android:pathData="M0,520 C90,560 180,500 270,540 C315,560 340,590 360,610 L360,640 L0,640 Z"
+        android:fillColor="#1AFFFFFF" />
+
+    <!-- Bottom Wave Layer 2 (10% Primary Green Accent Opacity) -->
+    <path
+        android:pathData="M0,560 C120,530 210,600 360,570 L360,640 L0,640 Z"
+        android:fillColor="#1A00C853" />
+
+    <!-- Subtle Center Highlight Accent (10% White Opacity) -->
+    <path
+        android:pathData="M180,260 C213.14,260 240,286.86 240,320 C240,353.14 213.14,380 180,380 C146.86,380 120,353.14 120,320 C120,286.86 146.86,260 180,260 Z"
+        android:fillColor="#1AFFFFFF" />
+
+</vector>

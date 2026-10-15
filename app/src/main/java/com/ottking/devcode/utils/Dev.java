@@ -8,11 +8,11 @@ public class Dev {
 
     // Contact Information
     public static final String CONTACT_WEBSITE = "https://ottking.com";
-    public static final String CONTACT_PHONE = "+880 1700-000000";
+    public static final String CONTACT_PHONE = "+880 1315-124700";
     public static final String CONTACT_EMAIL = "ottkingdev@gmail.com";
 
     // Developer Information
-    public static final String DEVELOPED_BY = "AnirbanSumon";
+    public static final String DEVELOPED_BY = "Anirban Sumon";
     public static final String DEV_CONTACT = "ottkingdev@gmail.com";
     public static final String DEV_LOCATION = "ottking global development & distribution Network";
     public static final String COPYRIGHT = "Copyright © OTTKING all Right reserved.";
